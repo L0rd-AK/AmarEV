@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # MongoDB Service
+  mongo:
+    image: mongo:7.0
+    container_name: chargebd-mongo
+    restart: always
+    ports:
+      - '27017:27017'
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: chargebd
+    volumes:
+      - mongo_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - chargebd-network
+
+  # Redis Service
+  redis:
+    image: redis:7.2-alpine
+    container_name: chargebd-redis
+    restart: always
+    ports:
+      - '6379:6379'
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - chargebd-network
+
+  # API Service
+  api:
+    build:
+      context: ./Server
+      dockerfile: Dockerfile
+    container_name: chargebd-api
+    restart: always
+    ports:
+      - '5000:5000'
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      MONGO_URI: mongodb://admin:password@mongo:27017/chargebd?authSource=admin
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+      JWT_REFRESH_SECRET: your-super-secret-refresh-key-change-in-production
+      ORS_API_KEY: your-openrouteservice-api-key
+      SSLZ_STORE_ID: your-sslcommerz-store-id
+      SSLZ_STORE_PASS: your-sslcommerz-store-password
+      SSLZ_SANDBOX: true
+      BKASH_APP_KEY: your-bkash-app-key
+      BKASH_APP_SECRET: your-bkash-app-secret
+      BKASH_USERNAME: your-bkash-username
+      BKASH_PASSWORD: your-bkash-password
+      BKASH_SANDBOX: true
+      BASE_URL: http://localhost:3000
+      API_BASE_URL: http://localhost:5000
+    depends_on:
+      - mongo
+      - redis
+    volumes:
+      - ./Server:/app
+      - /app/node_modules
+    networks:
+      - chargebd-network
+
+  # Web Service
+  web:
+    build:
+      context: ./Client
+      dockerfile: Dockerfile
+    container_name: chargebd-web
+    restart: always
+    ports:
+      - '3000:3000'
+    environment:
+      VITE_API_BASE_URL: http://localhost:5000
+      VITE_SOCKET_URL: http://localhost:5000
+      VITE_APP_ENV: development
+    depends_on:
+      - api
+    volumes:
+      - ./Client:/app
+      - /app/node_modules
+    networks:
+      - chargebd-network
+
+volumes:
+  mongo_data:
+  redis_data:
+
+networks:
+  chargebd-network:
+    driver: bridge

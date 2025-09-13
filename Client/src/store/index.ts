@@ -1,0 +1,1 @@
+export { store, persistor, type RootState, type AppDispatch } from './store';
