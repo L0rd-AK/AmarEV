@@ -5,6 +5,22 @@ export enum UserRole {
   ADMIN = 'admin'
 }
 
+// User Account Status
+export enum UserStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  SUSPENDED = 'suspended',
+  PENDING_VERIFICATION = 'pending_verification'
+}
+
+// Token Types
+export enum TokenType {
+  ACCESS = 'access',
+  REFRESH = 'refresh',
+  EMAIL_VERIFICATION = 'email_verification',
+  PASSWORD_RESET = 'password_reset'
+}
+
 // Connector Types
 export enum ConnectorType {
   AC = 'AC',
@@ -69,13 +85,40 @@ export interface User {
   email: string;
   passwordHash: string;
   role: UserRole;
+  status: UserStatus;
   phone?: string;
   displayName?: string;
   language: 'en' | 'bn';
   isEmailVerified: boolean;
   isPhoneVerified: boolean;
+  emailVerificationToken?: string;
+  emailVerificationExpires?: Date;
+  passwordResetToken?: string;
+  passwordResetExpires?: Date;
+  lastLogin?: Date;
+  loginAttempts?: number;
+  lockUntil?: Date;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// JWT Token Interface
+export interface JWTPayload {
+  userId: string;
+  email: string;
+  role: UserRole;
+  type: TokenType;
+  iat: number;
+  exp: number;
+}
+
+// Refresh Token Interface
+export interface RefreshToken {
+  _id: string;
+  userId: string;
+  token: string;
+  expiresAt: Date;
+  createdAt: Date;
 }
 
 export interface Vehicle {
@@ -239,12 +282,56 @@ export interface RegisterRequest {
   displayName: string;
   phone?: string;
   language?: 'en' | 'bn';
+  role?: UserRole;
 }
 
 export interface AuthResponse {
-  user: Omit<User, 'passwordHash'>;
+  user: Omit<User, 'passwordHash' | 'emailVerificationToken' | 'passwordResetToken'>;
   accessToken: string;
   refreshToken: string;
+}
+
+export interface RefreshTokenRequest {
+  refreshToken: string;
+}
+
+export interface RefreshTokenResponse {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  password: string;
+}
+
+export interface VerifyEmailRequest {
+  token: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface UpdateProfileRequest {
+  displayName?: string;
+  phone?: string;
+  language?: 'en' | 'bn';
+}
+
+// Authentication State Interface
+export interface AuthState {
+  user: Omit<User, 'passwordHash' | 'emailVerificationToken' | 'passwordResetToken'> | null;
+  accessToken: string | null;
+  refreshToken: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
 }
 
 export interface StationSearchParams {
@@ -357,11 +444,27 @@ export interface SocketEvents {
 }
 
 // Utility Types
-export type CreateUserRequest = Omit<User, '_id' | 'passwordHash' | 'createdAt' | 'updatedAt'> & {
+export type CreateUserRequest = Omit<User, '_id' | 'passwordHash' | 'createdAt' | 'updatedAt' | 'emailVerificationToken' | 'passwordResetToken' | 'lastLogin' | 'loginAttempts' | 'lockUntil'> & {
   password: string;
 };
 
 export type UpdateUserRequest = Partial<Pick<User, 'displayName' | 'phone' | 'language'>>;
+
+// Role Permission Types
+export type Permission = 
+  | 'user:read' | 'user:write' | 'user:delete'
+  | 'station:read' | 'station:write' | 'station:delete'
+  | 'reservation:read' | 'reservation:write' | 'reservation:delete'
+  | 'session:read' | 'session:write'
+  | 'payment:read' | 'payment:write' | 'payment:refund'
+  | 'review:read' | 'review:write' | 'review:delete'
+  | 'admin:all';
+
+export interface RolePermissions {
+  [UserRole.USER]: Permission[];
+  [UserRole.OPERATOR]: Permission[];
+  [UserRole.ADMIN]: Permission[];
+}
 
 export type CreateStationRequest = Omit<Station, '_id' | 'createdAt' | 'updatedAt'>;
 
