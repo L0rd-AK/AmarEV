@@ -5,7 +5,7 @@ import { User, UserDocument } from '@/models/User';
 import { UserRole } from '@chargebd/shared';
 import { logger } from '@/utils/logger';
 
-export interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest extends Omit<Request, 'user'> {
   user?: UserDocument;
   userId?: string;
 }
@@ -55,7 +55,7 @@ export class AuthService {
 
   static async createTokens(user: UserDocument): Promise<{ accessToken: string; refreshToken: string }> {
     const payload = {
-      userId: user._id.toString(),
+      userId: (user._id as any).toString(),
       email: user.email,
       role: user.role,
     };
@@ -106,7 +106,7 @@ export const authenticate = async (
       }
 
       req.user = user;
-      req.userId = user._id.toString();
+      req.userId = (user._id as any).toString();
       next();
     } catch (jwtError) {
       logger.error('JWT verification failed:', jwtError);
@@ -153,7 +153,7 @@ export const optionalAuthenticate = async (
       
       if (user) {
         req.user = user;
-        req.userId = user._id.toString();
+        req.userId = (user._id as any).toString();
       }
     } catch (jwtError) {
       // Ignore JWT errors in optional authentication

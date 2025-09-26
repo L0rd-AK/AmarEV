@@ -36,7 +36,7 @@ services:
     build:
       context: ./Server
       dockerfile: Dockerfile
-    container_name: chargebd-api
+    container_name: amarev-api
     restart: always
     ports:
       - '5000:5000'

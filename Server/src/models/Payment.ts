@@ -13,7 +13,6 @@ const paymentSchema = new Schema<PaymentDocument>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-      index: true,
     },
     provider: {
       type: String,
@@ -33,17 +32,14 @@ const paymentSchema = new Schema<PaymentDocument>(
       type: String,
       enum: Object.values(PaymentStatus),
       default: PaymentStatus.PENDING,
-      index: true,
     },
     transactionId: {
       type: String,
       required: true,
       unique: true,
-      index: true,
     },
     gatewayTransactionId: {
       type: String,
-      index: true,
     },
     metadata: {
       type: Schema.Types.Mixed,
@@ -53,17 +49,14 @@ const paymentSchema = new Schema<PaymentDocument>(
       type: String,
       required: true,
       unique: true,
-      index: true,
     },
     reservationId: {
       type: Schema.Types.ObjectId,
       ref: 'Reservation',
-      index: true,
     },
     sessionId: {
       type: Schema.Types.ObjectId,
       ref: 'Session',
-      index: true,
     },
   },
   {
@@ -80,9 +73,9 @@ const paymentSchema = new Schema<PaymentDocument>(
 // Indexes
 paymentSchema.index({ userId: 1, status: 1 });
 paymentSchema.index({ provider: 1, status: 1 });
-paymentSchema.index({ transactionId: 1 });
+// Note: transactionId already has unique: true, so no separate index needed
 paymentSchema.index({ gatewayTransactionId: 1 }, { sparse: true });
-paymentSchema.index({ idempotencyKey: 1 });
+// Note: idempotencyKey already has unique: true, so no separate index needed
 paymentSchema.index({ createdAt: -1 });
 
 export const Payment = model<PaymentDocument>('Payment', paymentSchema);

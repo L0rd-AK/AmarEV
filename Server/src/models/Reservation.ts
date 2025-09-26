@@ -14,7 +14,6 @@ const reservationSchema = new Schema<ReservationDocument>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-      index: true,
     },
     vehicleId: {
       type: Schema.Types.ObjectId,
@@ -25,7 +24,6 @@ const reservationSchema = new Schema<ReservationDocument>(
       type: Schema.Types.ObjectId,
       ref: 'Station',
       required: true,
-      index: true,
     },
     connectorId: {
       type: Schema.Types.ObjectId,
@@ -35,7 +33,6 @@ const reservationSchema = new Schema<ReservationDocument>(
     startTime: {
       type: Date,
       required: true,
-      index: true,
     },
     endTime: {
       type: Date,
@@ -51,7 +48,6 @@ const reservationSchema = new Schema<ReservationDocument>(
       type: String,
       enum: Object.values(ReservationStatus),
       default: ReservationStatus.PENDING,
-      index: true,
     },
     qrCode: {
       type: String,
@@ -89,7 +85,7 @@ reservationSchema.index({ userId: 1, status: 1 });
 reservationSchema.index({ stationId: 1, connectorId: 1, startTime: 1 });
 reservationSchema.index({ startTime: 1, endTime: 1 });
 reservationSchema.index({ status: 1, startTime: 1 });
-reservationSchema.index({ qrCode: 1 }, { sparse: true });
+// Note: qrCode already has unique: true and sparse: true, so no separate index needed
 
 // Compound index for conflict detection
 reservationSchema.index({

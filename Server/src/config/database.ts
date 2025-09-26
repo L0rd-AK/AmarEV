@@ -9,11 +9,16 @@ export const connectDatabase = async (): Promise<void> => {
       throw new Error('MONGO_URI environment variable is not defined');
     }
 
+    // Optimized settings for MongoDB Atlas connections
     await mongoose.connect(mongoUri, {
       maxPoolSize: 10,
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 30000, // 30 seconds for Atlas connections
       socketTimeoutMS: 45000,
+      connectTimeoutMS: 30000, // Added connection timeout
       bufferCommands: false,
+      retryWrites: true,
+      heartbeatFrequencyMS: 10000, // Check connection every 10 seconds
+      maxIdleTimeMS: 30000, // Close connections after 30 seconds of inactivity
     });
 
     logger.info('MongoDB connected successfully');

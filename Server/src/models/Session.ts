@@ -23,19 +23,16 @@ const sessionSchema = new Schema<SessionDocument>(
     reservationId: {
       type: Schema.Types.ObjectId,
       ref: 'Reservation',
-      index: true,
     },
     userId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-      index: true,
     },
     stationId: {
       type: Schema.Types.ObjectId,
       ref: 'Station',
       required: true,
-      index: true,
     },
     connectorId: {
       type: Schema.Types.ObjectId,
@@ -50,7 +47,6 @@ const sessionSchema = new Schema<SessionDocument>(
     startTime: {
       type: Date,
       required: true,
-      index: true,
     },
     endTime: {
       type: Date,
@@ -80,7 +76,6 @@ const sessionSchema = new Schema<SessionDocument>(
       type: String,
       enum: Object.values(SessionStatus),
       default: SessionStatus.ACTIVE,
-      index: true,
     },
     events: [sessionEventSchema],
     paymentId: {

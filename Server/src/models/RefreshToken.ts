@@ -16,18 +16,15 @@ const refreshTokenSchema = new Schema<RefreshTokenDocument>(
     userId: {
       type: String,
       required: true,
-      index: true,
     },
     token: {
       type: String,
       required: true,
       unique: true,
-      index: true,
     },
     expiresAt: {
       type: Date,
       required: true,
-      index: { expireAfterSeconds: 0 }, // TTL index for automatic cleanup
     },
   },
   {
@@ -37,7 +34,7 @@ const refreshTokenSchema = new Schema<RefreshTokenDocument>(
 
 // Indexes
 refreshTokenSchema.index({ userId: 1 });
-refreshTokenSchema.index({ token: 1 });
-refreshTokenSchema.index({ expiresAt: 1 });
+// Note: token already has unique: true, so no separate index needed
+refreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL index for automatic cleanup
 
 export const RefreshToken = model<RefreshTokenDocument>('RefreshToken', refreshTokenSchema);

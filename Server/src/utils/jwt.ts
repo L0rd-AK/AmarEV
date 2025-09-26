@@ -38,11 +38,17 @@ export class JWTService {
       type: TokenType.ACCESS,
     };
 
-    const tokenOptions = {
+    const tokenOptions: any = {
       expiresIn: options.expiresIn || this.defaultAccessTokenExpiry,
-      audience: options.audience,
-      issuer: options.issuer,
     };
+
+    // Only include audience and issuer if they are provided
+    if (options.audience) {
+      tokenOptions.audience = options.audience;
+    }
+    if (options.issuer) {
+      tokenOptions.issuer = options.issuer;
+    }
 
     return jwt.sign(payload, this.accessTokenSecret, tokenOptions);
   }
@@ -58,11 +64,17 @@ export class JWTService {
       type: TokenType.REFRESH,
     };
 
-    const tokenOptions = {
+    const tokenOptions: any = {
       expiresIn: options.expiresIn || this.defaultRefreshTokenExpiry,
-      audience: options.audience,
-      issuer: options.issuer,
     };
+
+    // Only include audience and issuer if they are provided
+    if (options.audience) {
+      tokenOptions.audience = options.audience;
+    }
+    if (options.issuer) {
+      tokenOptions.issuer = options.issuer;
+    }
 
     return jwt.sign(payload, this.refreshTokenSecret, tokenOptions);
   }
@@ -283,7 +295,7 @@ export class JWTService {
       throw new Error('Invalid expiry format');
     }
 
-    const value = parseInt(match[1]);
+    const value = parseInt(match[1]!, 10);
     const unit = match[2];
 
     switch (unit) {

@@ -13,7 +13,7 @@ export const logger = winston.createLogger({
     winston.format.errors({ stack: true }),
     winston.format.json()
   ),
-  defaultMeta: { service: 'chargebd-api' },
+  defaultMeta: { service: 'amarev-api' },
   transports: [
     // Write all logs with importance level of `error` or less to `error.log`
     new winston.transports.File({

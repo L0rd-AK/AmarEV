@@ -1,3 +1,9 @@
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load environment variables first, before any other imports
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -5,7 +11,6 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
-import dotenv from 'dotenv';
 
 import { connectDatabase } from '@/config/database';
 import { connectRedis } from '@/config/redis';
@@ -22,9 +27,6 @@ import paymentRoutes from '@/routes/payments';
 import routeRoutes from '@/routes/routes';
 import { reviewRoutes } from '@/routes/reviews';
 import { adminRoutes } from '@/routes/admin';
-
-// Load environment variables
-dotenv.config();
 
 const app = express();
 const server = createServer(app);
@@ -70,6 +72,7 @@ app.use(cors({
     const allowedOrigins = [
       process.env.BASE_URL,
       'http://localhost:3000',
+      'http://localhost:3001',  // Additional port for client
       'http://localhost:5173',
     ].filter(Boolean);
     

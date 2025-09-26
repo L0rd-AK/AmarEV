@@ -20,7 +20,6 @@ const userSchema = new Schema<UserDocument>(
       unique: true,
       lowercase: true,
       trim: true,
-      index: true,
     },
     passwordHash: {
       type: String,
@@ -39,7 +38,6 @@ const userSchema = new Schema<UserDocument>(
     phone: {
       type: String,
       sparse: true,
-      index: true,
     },
     displayName: {
       type: String,
@@ -87,10 +85,10 @@ const userSchema = new Schema<UserDocument>(
     timestamps: true,
     toJSON: {
       transform: (doc, ret) => {
-        delete ret.passwordHash;
-        delete ret.emailVerificationToken;
-        delete ret.passwordResetToken;
-        delete ret.__v;
+        delete ret?.passwordHash;
+        delete ret?.emailVerificationToken;
+        delete ret?.passwordResetToken;
+        delete ret?.__v;
         return ret;
       },
     },
@@ -107,13 +105,12 @@ const userSchema = new Schema<UserDocument>(
 );
 
 // Indexes
-userSchema.index({ email: 1 });
-userSchema.index({ phone: 1 }, { sparse: true });
+// Note: email already has unique: true, so no need for separate index
+// Note: phone has sparse: true, so no need for separate index  
+// Note: emailVerificationToken and passwordResetToken have sparse: true, so no separate index needed
 userSchema.index({ role: 1 });
 userSchema.index({ status: 1 });
 userSchema.index({ createdAt: -1 });
-userSchema.index({ emailVerificationToken: 1 }, { sparse: true });
-userSchema.index({ passwordResetToken: 1 }, { sparse: true });
 
 // Constants for account locking
 const MAX_LOGIN_ATTEMPTS = 5;

@@ -56,12 +56,10 @@ const stationSchema = new Schema<StationDocument>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-      index: true,
     },
     location: {
       type: locationSchema,
       required: true,
-      index: '2dsphere',
     },
     address: {
       type: addressSchema,
