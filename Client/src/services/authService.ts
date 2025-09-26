@@ -56,6 +56,12 @@ export interface RegisterResponse {
   emailVerificationSent: boolean;
 }
 
+export interface UpdateProfileRequest {
+  displayName?: string;
+  phone?: string;
+  language?: 'en' | 'bn';
+}
+
 // HTTP Client Configuration
 class ApiClient {
   private baseURL: string;
@@ -207,10 +213,24 @@ class ApiClient {
     return this.request<{ user: User }>('/auth/profile');
   }
 
+  async updateProfile(profileData: UpdateProfileRequest): Promise<ApiResponse<{ user: User }>> {
+    return this.request<{ user: User }>('/users/profile', {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    });
+  }
+
   async changePassword(currentPassword: string, newPassword: string): Promise<ApiResponse> {
     return this.request('/auth/change-password', {
       method: 'POST',
       body: JSON.stringify({ currentPassword, newPassword }),
+    });
+  }
+
+  async googleAuth(credential: string): Promise<ApiResponse<LoginResponse>> {
+    return this.request<LoginResponse>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ credential }),
     });
   }
 
@@ -242,6 +262,7 @@ export const apiClient = new ApiClient(API_BASE_URL);
 export const authService = {
   login: (credentials: LoginRequest) => apiClient.login(credentials),
   register: (userData: RegisterRequest) => apiClient.register(userData),
+  googleAuth: (credential: string) => apiClient.googleAuth(credential),
   logout: () => apiClient.logout(),
   refreshToken: () => apiClient.refreshAccessToken(),
   forgotPassword: (email: string) => apiClient.forgotPassword(email),
@@ -249,6 +270,7 @@ export const authService = {
   verifyEmail: (token: string) => apiClient.verifyEmail(token),
   resendEmailVerification: (email: string) => apiClient.resendEmailVerification(email),
   getProfile: () => apiClient.getProfile(),
+  updateProfile: (profileData: UpdateProfileRequest) => apiClient.updateProfile(profileData),
   changePassword: (currentPassword: string, newPassword: string) => 
     apiClient.changePassword(currentPassword, newPassword),
   isAuthenticated: () => apiClient.isAuthenticated(),

@@ -1,16 +1,12 @@
-import { Router } from 'express';
+import { Router } from 'express';  
 import { authenticate, authorize } from '@/middleware/auth';
+import { UserController } from '@/controllers/UserController';
 
 export const userRoutes = Router();
 
 // User profile management
-userRoutes.get('/profile', authenticate, (req, res) => {
-  res.json({ message: 'Get user profile' });
-});
-
-userRoutes.put('/profile', authenticate, (req, res) => {
-  res.json({ message: 'Update user profile' });
-});
+userRoutes.get('/profile', authenticate, UserController.getProfile);
+userRoutes.put('/profile', authenticate, UserController.validateProfileUpdate, UserController.updateProfile);
 
 // User vehicles
 userRoutes.get('/vehicles', authenticate, (req, res) => {

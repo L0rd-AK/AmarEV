@@ -64,6 +64,13 @@ const changePasswordSchema = z.object({
   ),
 });
 
+const googleAuthSchema = z.object({
+  credential: z.string().min(1, 'Google credential is required'),
+});
+
+// Initialize Google OAuth client
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
 export class AuthController {
   /**
    * Register a new user
@@ -752,6 +759,132 @@ export class AuthController {
       });
     } catch (error) {
       logger.error('Get profile error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Google OAuth Sign-in/Sign-up
+   */
+  static async googleAuth(req: Request, res: Response): Promise<void> {
+    try {
+      // Validate request body
+      const { credential } = googleAuthSchema.parse(req.body);
+
+      // Verify Google token
+      const ticket = await googleClient.verifyIdToken({
+        idToken: credential,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+
+      const payload = ticket.getPayload();
+      if (!payload) {
+        res.status(400).json({
+          success: false,
+          message: 'Invalid Google token'
+        });
+        return;
+      }
+
+      const { sub: googleId, email, name, picture, email_verified } = payload;
+
+      if (!email) {
+        res.status(400).json({
+          success: false,
+          message: 'Email not provided by Google'
+        });
+        return;
+      }
+
+      // Check if user already exists
+      let user = await User.findOne({ email }) as UserDocument | null;
+
+      if (user) {
+        // User exists - update Google ID if not set and login
+        if (!(user as any).googleId) {
+          (user as any).googleId = googleId;
+        }
+
+        // Update last login
+        (user as any).lastLogin = new Date();
+        
+        // If user was created through Google and email is verified by Google, mark as verified
+        if (email_verified && !user.isEmailVerified) {
+          user.isEmailVerified = true;
+          (user as any).status = UserStatus.ACTIVE;
+        }
+
+        await user.save();
+      } else {
+        // Create new user
+        user = new User({
+          email,
+          displayName: name || email.split('@')[0],
+          googleId,
+          role: UserRole.USER,
+          status: email_verified ? UserStatus.ACTIVE : UserStatus.PENDING_VERIFICATION,
+          isEmailVerified: email_verified || false,
+          avatar: picture,
+          language: 'en',
+          // No password hash for Google users - they authenticate through Google
+        });
+
+        await user.save();
+
+        // Send welcome email
+        if (email_verified) {
+          await getEmailService().sendWelcomeEmail(user.email, user.displayName);
+        }
+      }
+
+      // Generate JWT tokens
+      const { accessToken, refreshToken } = jwtService.generateTokenPair(
+        (user._id as string).toString(),
+        user.email,
+        user.role
+      );
+
+      // Store refresh token in database
+      await jwtService.storeRefreshToken((user._id as string).toString(), refreshToken);
+
+      res.json({
+        success: true,
+        message: 'Google authentication successful',
+        data: {
+          user: {
+            id: user._id,
+            email: user.email,
+            displayName: user.displayName,
+            role: user.role,
+            status: (user as any).status,
+            isEmailVerified: user.isEmailVerified,
+            phone: user.phone,
+            language: user.language,
+            avatar: user.avatar || picture,
+          },
+          tokens: {
+            accessToken,
+            refreshToken,
+          }
+        }
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({
+          success: false,
+          message: 'Validation error',
+          errors: error.errors.map(e => ({
+            field: e.path.join('.'),
+            message: e.message
+          }))
+        });
+        return;
+      }
+
+      logger.error('Google authentication error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error'

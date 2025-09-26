@@ -23,7 +23,10 @@ const userSchema = new Schema<UserDocument>(
     },
     passwordHash: {
       type: String,
-      required: true,
+      required: function(this: UserDocument) {
+        // Password is required only if googleId is not present
+        return !this.googleId;
+      },
     },
     role: {
       type: String,
@@ -79,6 +82,14 @@ const userSchema = new Schema<UserDocument>(
     },
     lockUntil: {
       type: Date,
+    },
+    // Google OAuth fields
+    googleId: {
+      type: String,
+      sparse: true,
+    },
+    avatar: {
+      type: String,
     },
   },
   {
