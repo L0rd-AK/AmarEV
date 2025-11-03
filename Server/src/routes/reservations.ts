@@ -1,25 +1,29 @@
 import { Router } from 'express';
-import { authenticate } from '@/middleware/auth';
+import { ReservationController } from '../controllers/ReservationController';
+import { authenticateToken } from '../middleware/authMiddleware';
 
 export const reservationRoutes = Router();
 
-// Reservation management
-reservationRoutes.get('/', authenticate, (req, res) => {
-  res.json({ message: 'Get user reservations', reservations: [] });
-});
+// Check availability for a connector and time slot
+reservationRoutes.post('/check-availability', authenticateToken, ReservationController.checkAvailability);
 
-reservationRoutes.post('/', authenticate, (req, res) => {
-  res.json({ message: 'Create reservation', reservation: req.body });
-});
+// Get available time slots for a connector on a specific date
+reservationRoutes.get('/available-slots', authenticateToken, ReservationController.getAvailableSlots);
 
-reservationRoutes.get('/:id', authenticate, (req, res) => {
-  res.json({ message: 'Get reservation', reservationId: req.params.id });
-});
+// Get all reservations for the authenticated user
+reservationRoutes.get('/', authenticateToken, ReservationController.getUserReservations);
 
-reservationRoutes.put('/:id', authenticate, (req, res) => {
-  res.json({ message: 'Update reservation', reservationId: req.params.id });
-});
+// Create a new reservation
+reservationRoutes.post('/', authenticateToken, ReservationController.createReservation);
 
-reservationRoutes.delete('/:id', authenticate, (req, res) => {
-  res.json({ message: 'Cancel reservation', reservationId: req.params.id });
-});
+// Get reservations for a specific station (operators/admins only)
+reservationRoutes.get('/station/:stationId', authenticateToken, ReservationController.getStationReservations);
+
+// Get a specific reservation by ID
+reservationRoutes.get('/:id', authenticateToken, ReservationController.getReservationById);
+
+// Update a reservation (confirm, check-in, complete)
+reservationRoutes.put('/:id', authenticateToken, ReservationController.updateReservation);
+
+// Cancel a reservation
+reservationRoutes.delete('/:id', authenticateToken, ReservationController.cancelReservation);

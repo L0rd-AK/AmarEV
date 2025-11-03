@@ -8,10 +8,11 @@ import {
 } from 'lucide-react';
 import { Station, Connector, stationService } from '@/services/stationService';
 import { Button, Card, LoadingSpinner, Alert } from '@/components/UI';
+import { BookingModal } from '../components/BookingModal';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Fix leaflet default icon
+// Fix Leaflet default icon issue with Webpack
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
@@ -67,6 +68,8 @@ export const StationDetails: React.FC = () => {
   const [station, setStation] = useState<Station | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [selectedConnector, setSelectedConnector] = useState<Connector | null>(null);
   const [selectedImage, setSelectedImage] = useState(0);
 
   useEffect(() => {
@@ -252,7 +255,14 @@ export const StationDetails: React.FC = () => {
                       </div>
 
                       {connector.status === 'available' && (
-                        <Button className="w-full mt-4" variant="primary">
+                        <Button 
+                          className="w-full mt-4" 
+                          variant="primary"
+                          onClick={() => {
+                            setSelectedConnector(connector);
+                            setIsBookingModalOpen(true);
+                          }}
+                        >
                           Reserve This Connector
                         </Button>
                       )}
@@ -413,6 +423,23 @@ export const StationDetails: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Booking Modal */}
+      {selectedConnector && (
+        <BookingModal
+          isOpen={isBookingModalOpen}
+          onClose={() => {
+            setIsBookingModalOpen(false);
+            setSelectedConnector(null);
+          }}
+          stationId={station._id}
+          stationName={station.name}
+          connector={selectedConnector}
+          onSuccess={() => {
+            // Booking successful - modal will show success message
+          }}
+        />
+      )}
     </div>
   );
 };
