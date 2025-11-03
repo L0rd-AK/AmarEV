@@ -1,6 +1,7 @@
 {
   "name": "@chargebd/shared",
   "version": "1.0.0",
+  "type": "module",
   "description": "Shared types and utilities for ChargeBD",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

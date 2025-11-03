@@ -70,7 +70,7 @@ class ApiClient {
     this.baseURL = baseURL;
   }
 
-  private async request<T>(
+  async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
@@ -98,38 +98,81 @@ class ApiClient {
 
     try {
       const response = await fetch(url, config);
-      const data: ApiResponse<T> = await response.json();
+      
+      // Try to parse JSON response
+      let data: any;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        throw new Error('Invalid response from server');
+      }
 
-      // Handle token refresh if access token is expired
-      if (response.status === 401 && data.message?.includes('token')) {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (refreshToken) {
-          try {
-            const refreshResponse = await this.refreshAccessToken();
-            if (refreshResponse.success) {
-              // Retry original request with new token
-              const newToken = refreshResponse.data?.tokens.accessToken;
-              if (newToken) {
+      // Handle different error response structures
+      if (!response.ok) {
+        // Check for nested error structure
+        const errorMessage = data.error?.message || data.message || data.error || 'Request failed';
+        
+        // Handle token refresh for 401 errors
+        if (response.status === 401 && errorMessage.toLowerCase().includes('token')) {
+          const refreshToken = localStorage.getItem('refreshToken');
+          if (refreshToken) {
+            try {
+              const refreshResponse = await this.refreshAccessToken();
+              if (refreshResponse.success && refreshResponse.data) {
+                // Retry original request with new token
+                const newToken = refreshResponse.data.tokens.accessToken;
                 config.headers = {
                   ...config.headers,
                   Authorization: `Bearer ${newToken}`,
                 };
                 const retryResponse = await fetch(url, config);
-                return await retryResponse.json();
+                const retryData = await retryResponse.json();
+                
+                if (!retryResponse.ok) {
+                  throw new Error(retryData.error?.message || retryData.message || 'Request failed after retry');
+                }
+                
+                return retryData;
               }
+            } catch (refreshError) {
+              // Refresh failed, clear auth data and redirect to login
+              console.error('Token refresh failed:', refreshError);
+              this.clearAuthData();
+              window.location.href = '/login';
+              throw new Error('Session expired. Please login again.');
             }
-          } catch (refreshError) {
-            // Refresh failed, redirect to login
+          } else {
+            // No refresh token, redirect to login
             this.clearAuthData();
             window.location.href = '/login';
+            throw new Error('Please login to continue');
           }
         }
+        
+        // Return error response
+        return {
+          success: false,
+          message: errorMessage,
+          data: undefined,
+        };
       }
 
+      // Return success response
       return data;
     } catch (error) {
       console.error('API request failed:', error);
-      throw new Error('Network error. Please check your connection.');
+      if (error instanceof Error) {
+        return {
+          success: false,
+          message: error.message,
+          data: undefined,
+        };
+      }
+      return {
+        success: false,
+        message: 'Network error. Please check your connection.',
+        data: undefined,
+      };
     }
   }
 

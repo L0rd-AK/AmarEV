@@ -431,7 +431,7 @@ export class PaymentController {
       const signature = req.headers['x-signature'] as string;
       
       const response = await paymentService.handleWebhook(
-        PaymentMethod.SSLCOMMERZ,
+        PaymentProvider.SSLCOMMERZ,
         req.body,
         signature
       );
@@ -464,7 +464,7 @@ export class PaymentController {
       const signature = req.headers['x-signature'] as string;
       
       const response = await paymentService.handleWebhook(
-        PaymentMethod.BKASH,
+        PaymentProvider.BKASH,
         req.body,
         signature
       );
@@ -486,6 +486,32 @@ export class PaymentController {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       res.status(500).send('Internal server error');
+    }
+  }
+
+  /**
+   * Get payment statistics for user
+   */
+  async getPaymentStats(req: Request, res: Response) {
+    try {
+      const userId = req.user!.id;
+      
+      const stats = await paymentService.getUserPaymentStats(userId);
+
+      res.json({
+        success: true,
+        data: stats,
+      });
+    } catch (error) {
+      logger.error(`Get payment stats error`, {
+        userId: req.user?.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+      });
     }
   }
 }

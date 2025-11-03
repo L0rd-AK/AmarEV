@@ -20,6 +20,9 @@ router.post('/refund', authenticate, authorize('admin', 'operator'), paymentCont
 // User payment history
 router.get('/history', authenticate, paymentController.getPaymentHistory);
 
+// Get payment statistics
+router.get('/stats', authenticate, paymentController.getPaymentStats);
+
 // Get specific payment details
 router.get('/:transactionId', authenticate, paymentController.getPayment);
 

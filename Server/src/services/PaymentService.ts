@@ -148,7 +148,7 @@ class PaymentService {
    * Verify payment status
    */
   async verifyPayment(
-    paymentMethod: PaymentMethod,
+    paymentMethod: PaymentProvider,
     transactionId: string
   ): Promise<PaymentVerificationResponse> {
     try {
@@ -166,6 +166,8 @@ class PaymentService {
         if (response.success && response.status === PaymentStatus.COMPLETED) {
           payment.paidAt = response.paidAt || new Date();
           payment.gatewayTransactionId = response.gatewayTransactionId;
+        } else if (response.status === PaymentStatus.FAILED && response.error) {
+          payment.failureReason = response.error;
         }
         payment.verificationResponse = response;
         await payment.save();
@@ -183,7 +185,7 @@ class PaymentService {
       logger.error(`Payment verification error`, {
         method: paymentMethod,
         transactionId,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
       throw error;
     }
@@ -193,7 +195,7 @@ class PaymentService {
    * Process refund
    */
   async refundPayment(
-    paymentMethod: PaymentMethod,
+    paymentMethod: PaymentProvider,
     transactionId: string,
     amount: number,
     reason?: string
@@ -213,7 +215,7 @@ class PaymentService {
         throw new Error(`Cannot refund payment with status: ${payment.status}`);
       }
 
-      if (amount > payment.amount) {
+      if (amount > payment.amountBDT) {
         throw new Error(`Refund amount cannot exceed original payment amount`);
       }
 
@@ -222,8 +224,9 @@ class PaymentService {
       if (response.success) {
         payment.status = PaymentStatus.REFUNDED;
         payment.refundedAt = new Date();
-        payment.refundAmount = response.refundedAmount || amount;
+        payment.refundedAmount = response.refundedAmount || amount;
         payment.refundReason = reason;
+        payment.refundId = response.refundId;
         payment.refundResponse = response;
         await payment.save();
 
@@ -241,7 +244,7 @@ class PaymentService {
         method: paymentMethod,
         transactionId,
         amount,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
       throw error;
     }
@@ -251,7 +254,7 @@ class PaymentService {
    * Handle webhook from payment provider
    */
   async handleWebhook(
-    paymentMethod: PaymentMethod,
+    paymentMethod: PaymentProvider,
     payload: any,
     signature?: string
   ): Promise<WebhookResponse> {
@@ -269,6 +272,17 @@ class PaymentService {
           payment.status = response.status;
           if (response.status === PaymentStatus.COMPLETED) {
             payment.paidAt = new Date();
+            payment.gatewayTransactionId = response.metadata?.bankTransactionId || response.metadata?.trxId;
+            
+            // Extract card details if available
+            if (response.metadata) {
+              payment.cardDetails = {
+                cardType: response.metadata.cardType,
+                cardBrand: response.metadata.cardBrand,
+                cardIssuer: response.metadata.cardIssuer,
+                lastFourDigits: response.metadata.cardNo?.slice(-4),
+              };
+            }
           }
           payment.webhookPayload = payload;
           await payment.save();
@@ -286,7 +300,7 @@ class PaymentService {
     } catch (error) {
       logger.error(`Webhook processing error`, {
         method: paymentMethod,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         payload,
       });
       throw error;
@@ -347,11 +361,63 @@ class PaymentService {
     } catch (error) {
       logger.error(`Get user payments error`, {
         userId,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get payment statistics for a user
+   */
+  async getUserPaymentStats(userId: string): Promise<{
+    totalSpent: number;
+    totalTransactions: number;
+    successfulPayments: number;
+    failedPayments: number;
+    refundedAmount: number;
+  }> {
+    try {
+      const stats = await PaymentModel.aggregate([
+        { $match: { userId: new Types.ObjectId(userId) } },
+        {
+          $group: {
+            _id: null,
+            totalSpent: {
+              $sum: {
+                $cond: [{ $eq: ['$status', PaymentStatus.COMPLETED] }, '$amountBDT', 0]
+              }
+            },
+            totalTransactions: { $sum: 1 },
+            successfulPayments: {
+              $sum: { $cond: [{ $eq: ['$status', PaymentStatus.COMPLETED] }, 1, 0] }
+            },
+            failedPayments: {
+              $sum: { $cond: [{ $eq: ['$status', PaymentStatus.FAILED] }, 1, 0] }
+            },
+            refundedAmount: { $sum: '$refundedAmount' },
+          }
+        }
+      ]);
+
+      return stats[0] || {
+        totalSpent: 0,
+        totalTransactions: 0,
+        successfulPayments: 0,
+        failedPayments: 0,
+        refundedAmount: 0,
+      };
+    } catch (error) {
+      logger.error(`Get user payment stats error`, {
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
       throw error;
     }
   }
 }
+
+// Need to import Types for ObjectId
+import { Types } from 'mongoose';
 
 export const paymentService = new PaymentService();

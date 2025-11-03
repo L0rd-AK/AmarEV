@@ -183,7 +183,14 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       }
     } catch (err: any) {
       console.error('Booking error:', err);
-      setError(err.response?.data?.error || 'Failed to create booking');
+      // Handle different error response structures
+      const errorMessage = 
+        err.response?.data?.error?.message || 
+        err.response?.data?.error || 
+        err.response?.data?.message ||
+        err.message ||
+        'Failed to create booking';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -194,7 +201,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const selectedVehicleData = vehicles.find(v => v._id === selectedVehicle);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-[9999] flex items-center justify-center p-4">
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="border-b p-6">
