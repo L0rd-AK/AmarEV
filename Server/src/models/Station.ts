@@ -73,7 +73,7 @@ const stationSchema = new Schema<StationDocument>(
       type: String,
       validate: {
         validator: function(url: string) {
-          return /^https?:\/\/.+\.(jpg|jpeg|png|webp)$/i.test(url);
+          return /^https?:\/\/.+/i.test(url);
         },
         message: 'Invalid photo URL format',
       },

@@ -14,6 +14,7 @@
     "lint:fix": "eslint src/**/*.ts --fix",
     "typecheck": "tsc --noEmit",
     "seed": "tsx src/scripts/seed.ts",
+    "seed:stations": "tsx src/scripts/seedStations.ts",
     "migrate": "tsx src/scripts/migrate.ts"
   },
   "dependencies": {

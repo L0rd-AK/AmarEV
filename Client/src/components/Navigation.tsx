@@ -69,9 +69,9 @@ const Navigation: React.FC = () => {
               Home
             </Link>
             <Link 
-              to="/map" 
+              to="/stations" 
               className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive('/map') 
+                isActive('/stations') || location.pathname.startsWith('/stations/')
                   ? 'bg-white bg-opacity-20 text-white' 
                   : 'text-blue-100 hover:text-white hover:bg-white hover:bg-opacity-10'
               }`}
@@ -126,6 +126,15 @@ const Navigation: React.FC = () => {
                     >
                       Profile
                     </Link>
+                    {user?.role === 'operator' || user?.role === 'admin' ? (
+                      <Link
+                        to="/operator/dashboard"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        My Stations
+                      </Link>
+                    ) : null}
                     <Link
                       to="/reservations"
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -211,9 +220,9 @@ const Navigation: React.FC = () => {
                 Home
               </Link>
               <Link 
-                to="/map" 
+                to="/stations" 
                 className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
-                  isActive('/map') 
+                  isActive('/stations') || location.pathname.startsWith('/stations/')
                     ? 'bg-white bg-opacity-20 text-white' 
                     : 'text-blue-100 hover:text-white hover:bg-white hover:bg-opacity-10'
                 }`}
@@ -247,6 +256,15 @@ const Navigation: React.FC = () => {
                     >
                       Profile
                     </Link>
+                    {user?.role === 'operator' || user?.role === 'admin' ? (
+                      <Link
+                        to="/operator/dashboard"
+                        className="block px-3 py-2 rounded-md text-base font-medium text-blue-100 hover:text-white hover:bg-white hover:bg-opacity-10"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        My Stations
+                      </Link>
+                    ) : null}
                     <Link
                       to="/reservations"
                       className="block px-3 py-2 rounded-md text-base font-medium text-blue-100 hover:text-white hover:bg-white hover:bg-opacity-10"
