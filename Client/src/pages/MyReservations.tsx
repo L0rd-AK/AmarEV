@@ -5,6 +5,7 @@ import { LoadingSpinner } from '../components/UI/LoadingSpinner';
 import { Alert } from '../components/UI/Alert';
 import { Button } from '../components/UI';
 import { Link } from 'react-router-dom';
+import { config } from '../config';
 
 interface Reservation {
   _id: string;
@@ -51,11 +52,27 @@ export const MyReservations: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      console.log('Fetching reservations from:', config.apiBaseUrl);
+      console.log('Access Token:', localStorage.getItem('accessToken') ? 'Present' : 'Missing');
       const response = await reservationService.getUserReservations();
       console.log('Reservations API Response:', response);
-      console.log('Reservations data:', response.data);
-      console.log('Reservations array:', response.data?.reservations);
-      setReservations(response.data?.reservations as any || []);
+      console.log('Response success:', response.success);
+      console.log('Response message:', response.message);
+      console.log('Response data:', response.data);
+      console.log('Response reservations:', (response as any).reservations);
+      
+      // Handle error response
+      if (response.success === false && response.message) {
+        setError(response.message);
+        setReservations([]);
+        return;
+      }
+      
+      // Backend returns { reservations: [...], count: N } directly
+      // Not wrapped in { success, data: { reservations } }
+      const reservationsData = (response as any).reservations || response.data?.reservations || [];
+      console.log('Extracted reservations:', reservationsData);
+      setReservations(reservationsData);
     } catch (err) {
       console.error('Error fetching reservations:', err);
       setError('Failed to load reservations');
