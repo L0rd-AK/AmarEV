@@ -127,9 +127,23 @@ async function startServer() {
     await connectDatabase();
     logger.info('✅ MongoDB connected successfully');
 
-    // Connect to Redis
-    await connectRedis();
-    logger.info('✅ Redis connected successfully');
+    // Connect to Redis (optional for development)
+    try {
+      await connectRedis();
+      logger.info('✅ Redis connected successfully');
+      
+      // Initialize background workers (only if Redis is available)
+      const { initializeWorkers } = await import('@/jobs');
+      await initializeWorkers();
+    } catch (error: any) {
+      if (error.message?.includes('ECONNREFUSED') || error.code === 'ECONNREFUSED') {
+        logger.warn('⚠️ Redis is not available - continuing without Redis');
+        logger.warn('⚠️ Payment timeout and reminder features will be disabled');
+      } else {
+        logger.error('❌ Redis connection error:', error);
+        throw error;
+      }
+    }
 
     // Setup Socket.IO
     setupSocketIO(io);

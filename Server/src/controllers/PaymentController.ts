@@ -6,6 +6,7 @@ import { Reservation } from '../models/Reservation';
 import { Session } from '../models/Session';
 import { logger } from '../utils/logger';
 import { z } from 'zod';
+import { reservationExpiryQueue, paymentReminderQueue } from '../config/queue';
 
 const initiatePaymentSchema = z.object({
   reservationId: z.string().optional(),
@@ -252,6 +253,46 @@ export class PaymentController {
       const { transactionId, paymentMethod } = validation.data;
 
       const response = await paymentService.verifyPayment(paymentMethod, transactionId);
+
+      // If payment is successful, update reservation status
+      if (response.success && response.status === PaymentStatus.COMPLETED) {
+        try {
+          // Find payment record to get reservation ID
+          const payment = await paymentService.getPayment(transactionId);
+          
+          if (payment && payment.reservationId) {
+            // Update reservation as paid
+            const reservation = await Reservation.findById(payment.reservationId);
+            
+            if (reservation && !reservation.isPaid) {
+              reservation.isPaid = true;
+              reservation.paymentStatus = 'completed';
+              reservation.paymentId = payment._id;
+              reservation.status = 'confirmed'; // Move to confirmed status
+              await reservation.save();
+
+              logger.info(`Reservation ${reservation._id} marked as paid`);
+
+              // Cancel scheduled expiry and reminder jobs
+              try {
+                if (reservationExpiryQueue && paymentReminderQueue) {
+                  await reservationExpiryQueue.remove(`expiry-${reservation._id}`);
+                  await paymentReminderQueue.remove(`reminder-${reservation._id}`);
+                  logger.info(`Cancelled expiry and reminder jobs for reservation ${reservation._id}`);
+                } else {
+                  logger.warn('Queue not available for job cancellation - Redis may not be running');
+                }
+              } catch (jobError) {
+                logger.warn(`Failed to cancel jobs for reservation ${reservation._id}:`, jobError);
+                // Don't fail the verification if job cancellation fails
+              }
+            }
+          }
+        } catch (updateError) {
+          logger.error('Error updating reservation after payment:', updateError);
+          // Don't fail the verification response if reservation update fails
+        }
+      }
 
       logger.info(`Payment verification completed`, {
         transactionId,

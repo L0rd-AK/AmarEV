@@ -14,32 +14,53 @@ export const PaymentSuccess: React.FC = () => {
 
   useEffect(() => {
     const verifyPayment = async () => {
+      // SSLCommerz sends: tran_id, val_id, amount, card_type, store_amount, card_no, bank_tran_id, status, tran_date, currency, card_issuer, card_brand, card_issuer_country, card_issuer_country_code
       const transactionId = searchParams.get('tran_id') || searchParams.get('transactionId');
-      const provider = searchParams.get('provider') as PaymentProvider;
+      const valId = searchParams.get('val_id');
+      const status = searchParams.get('status');
+      
+      // Default to SSLCommerz since we're only using that
+      const provider = (searchParams.get('provider') as PaymentProvider) || PaymentProvider.SSLCOMMERZ;
 
-      if (!transactionId || !provider) {
-        setError('Invalid payment callback');
+      if (!transactionId) {
+        setError('Invalid payment callback - No transaction ID');
+        setLoading(false);
+        return;
+      }
+
+      // Check if SSLCommerz returned a failed/cancelled status
+      if (status && (status.toUpperCase() === 'FAILED' || status.toUpperCase() === 'CANCELLED')) {
+        setError(`Payment ${status.toLowerCase()}. Please try again.`);
         setLoading(false);
         return;
       }
 
       try {
+        console.log('Verifying payment:', { transactionId, valId, status, provider });
+        
         // Verify payment with backend
         const response = await paymentService.verifyPayment({
-          transactionId,
+          transactionId: valId || transactionId, // Use val_id for SSLCommerz validation
           paymentMethod: provider,
         });
+
+        console.log('Verification response:', response);
 
         if (response.success && response.data?.success) {
           // Fetch full payment details
           const paymentData = await paymentService.getPayment(transactionId);
           setPayment(paymentData);
+          
+          // Clear pending payment data from localStorage
+          localStorage.removeItem('pendingPaymentTransaction');
+          localStorage.removeItem('pendingPaymentReservation');
+          localStorage.removeItem('pendingPaymentSession');
         } else {
           setError(response.data?.error || 'Payment verification failed');
         }
       } catch (err: any) {
         console.error('Payment verification error:', err);
-        setError(err.response?.data?.error || 'Failed to verify payment');
+        setError(err.response?.data?.error || err.message || 'Failed to verify payment');
       } finally {
         setLoading(false);
       }

@@ -193,6 +193,10 @@ export interface Reservation {
   otp?: string;
   totalCostBDT?: number;
   notes?: string;
+  paymentStatus?: 'pending' | 'completed' | 'failed' | 'expired';
+  paymentDeadline?: Date;
+  isPaid?: boolean;
+  paymentId?: string;
   createdAt: Date;
   updatedAt: Date;
 }

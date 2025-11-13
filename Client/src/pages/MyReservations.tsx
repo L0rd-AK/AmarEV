@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Calendar, MapPin, Clock, AlertCircle, CheckCircle, XCircle, QrCode } from 'lucide-react';
+import { Calendar, MapPin, Clock, AlertCircle, CheckCircle, XCircle, QrCode, CreditCard, Timer } from 'lucide-react';
 import reservationService from '../services/reservationService';
 import { LoadingSpinner } from '../components/UI/LoadingSpinner';
 import { Alert } from '../components/UI/Alert';
 import { Button } from '../components/UI';
 import { Link } from 'react-router-dom';
 import { config } from '../config';
+import { PaymentIntegration } from '../components/Payment/PaymentIntegration';
 
 interface Reservation {
   _id: string;
@@ -34,8 +35,52 @@ interface Reservation {
   qrCode?: string;
   verificationCode?: string;
   createdAt: string;
-  estimatedCostBDT?: number;
+  totalCostBDT?: number;
+  estimatedCostBDT?: number; // Alias for compatibility
+  paymentStatus?: 'pending' | 'completed' | 'failed' | 'expired';
+  paymentDeadline?: string;
+  isPaid?: boolean;
 }
+
+// Countdown Timer Component
+const CountdownTimer: React.FC<{ deadline: string; onExpire: () => void }> = ({ deadline, onExpire }) => {
+  const [timeLeft, setTimeLeft] = useState<string>('');
+  const [isExpired, setIsExpired] = useState(false);
+  const [isUrgent, setIsUrgent] = useState(false);
+
+  useEffect(() => {
+    const updateTimer = () => {
+      const now = new Date().getTime();
+      const deadlineTime = new Date(deadline).getTime();
+      const difference = deadlineTime - now;
+
+      if (difference <= 0) {
+        setIsExpired(true);
+        setTimeLeft('Expired');
+        onExpire();
+        return;
+      }
+
+      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+
+      setIsUrgent(minutes < 5);
+      setTimeLeft(`${minutes}m ${seconds}s`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [deadline, onExpire]);
+
+  return (
+    <div className={`flex items-center gap-2 ${isExpired ? 'text-red-600' : isUrgent ? 'text-orange-600' : 'text-yellow-600'}`}>
+      <Timer className="w-4 h-4" />
+      <span className="font-mono font-semibold">{timeLeft}</span>
+    </div>
+  );
+};
 
 export const MyReservations: React.FC = () => {
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -43,6 +88,7 @@ export const MyReservations: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'completed' | 'cancelled'>('all');
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
+  const [payingReservation, setPayingReservation] = useState<Reservation | null>(null);
 
   useEffect(() => {
     fetchReservations();
@@ -93,11 +139,16 @@ export const MyReservations: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, paymentStatus?: string) => {
     const statusConfig: Record<string, { color: string; icon: JSX.Element; label: string }> = {
+      PENDING: {
+        color: 'bg-yellow-100 text-yellow-800',
+        icon: <Clock className="w-4 h-4" />,
+        label: paymentStatus === 'pending' ? 'Awaiting Payment' : 'Pending',
+      },
       CONFIRMED: {
         color: 'bg-blue-100 text-blue-800',
-        icon: <Clock className="w-4 h-4" />,
+        icon: <CheckCircle className="w-4 h-4" />,
         label: 'Confirmed',
       },
       CHECKED_IN: {
@@ -110,10 +161,15 @@ export const MyReservations: React.FC = () => {
         icon: <CheckCircle className="w-4 h-4" />,
         label: 'Completed',
       },
-      CANCELLED: {
+      CANCELED: {
         color: 'bg-red-100 text-red-800',
         icon: <XCircle className="w-4 h-4" />,
         label: 'Cancelled',
+      },
+      EXPIRED: {
+        color: 'bg-orange-100 text-orange-800',
+        icon: <AlertCircle className="w-4 h-4" />,
+        label: 'Expired - Payment Not Completed',
       },
       NO_SHOW: {
         color: 'bg-yellow-100 text-yellow-800',
@@ -122,7 +178,7 @@ export const MyReservations: React.FC = () => {
       },
     };
 
-    const config = statusConfig[status] || statusConfig.CONFIRMED;
+    const config = statusConfig[status] || statusConfig.PENDING;
 
     return (
       <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${config.color}`}>
@@ -304,22 +360,50 @@ export const MyReservations: React.FC = () => {
                       </div>
                     </div>
 
-                    {reservation.estimatedCostBDT && (
+                    {(reservation.totalCostBDT || reservation.estimatedCostBDT) && (
                       <div className="text-sm">
                         <span className="text-gray-600">Estimated Cost: </span>
                         <span className="font-semibold text-gray-900">
-                          ৳{reservation.estimatedCostBDT.toFixed(2)}
+                          ৳{(reservation.totalCostBDT || reservation.estimatedCostBDT)?.toFixed(2)}
                         </span>
+                      </div>
+                    )}
+
+                    {/* Payment Countdown for Pending Payments */}
+                    {reservation.status === 'PENDING' && 
+                     !reservation.isPaid && 
+                     reservation.paymentDeadline && (
+                      <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <AlertCircle className="w-4 h-4 text-yellow-600" />
+                          <span className="text-sm font-medium text-yellow-900">Complete payment to confirm your reservation</span>
+                        </div>
+                        <CountdownTimer 
+                          deadline={reservation.paymentDeadline} 
+                          onExpire={() => fetchReservations()}
+                        />
                       </div>
                     )}
                   </div>
 
                   {/* Right Section */}
                   <div className="flex flex-col items-end gap-3">
-                    {getStatusBadge(reservation.status)}
+                    {getStatusBadge(reservation.status, reservation.paymentStatus)}
 
-                    <div className="flex gap-2">
-                      {['CONFIRMED', 'CHECKED_IN'].includes(reservation.status) && (
+                    <div className="flex gap-2 flex-wrap justify-end">
+                      {/* Pay Now Button for Pending Payments - Show for all PENDING that aren't paid */}
+                      {(reservation.status === 'PENDING' || reservation.status === 'pending') && !reservation.isPaid && (
+                        <Button
+                          onClick={() => setPayingReservation(reservation)}
+                          className="text-sm flex items-center gap-2 bg-green-600 hover:bg-green-700 font-semibold shadow-lg animate-pulse hover:animate-none"
+                        >
+                          <CreditCard className="w-4 h-4" />
+                          Pay Now ৳{(reservation.totalCostBDT || reservation.estimatedCostBDT || 0).toFixed(0)}
+                        </Button>
+                      )}
+
+                      {/* View QR for Confirmed/Checked-In */}
+                      {['CONFIRMED', 'CHECKED_IN', 'confirmed', 'checked_in'].includes(reservation.status) && (
                         <>
                           <Button
                             onClick={() => setSelectedReservation(reservation)}
@@ -336,12 +420,54 @@ export const MyReservations: React.FC = () => {
                           </Button>
                         </>
                       )}
+
+                      {/* Cancel for Pending Reservations */}
+                      {(reservation.status === 'PENDING' || reservation.status === 'pending') && (
+                        <Button
+                          onClick={() => handleCancelReservation(reservation._id)}
+                          className="text-sm bg-gray-500 hover:bg-gray-600"
+                        >
+                          Cancel
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {payingReservation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-900">Complete Payment</h2>
+                <button
+                  onClick={() => setPayingReservation(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                  aria-label="Close payment modal"
+                  title="Close"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <PaymentIntegration
+                reservationId={payingReservation._id}
+                amount={payingReservation.totalCostBDT || payingReservation.estimatedCostBDT || 0}
+                description={`Charging at ${payingReservation.stationId?.name || 'Station'}`}
+                onPaymentSuccess={() => {
+                  setPayingReservation(null);
+                  fetchReservations();
+                }}
+                onPaymentCancel={() => setPayingReservation(null)}
+              />
+            </div>
+          </div>
         </div>
       )}
 

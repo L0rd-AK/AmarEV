@@ -6,6 +6,10 @@ export interface ReservationDocument extends Omit<IReservation, '_id' | 'userId'
   vehicleId: Types.ObjectId;
   stationId: Types.ObjectId;
   connectorId: Types.ObjectId;
+  paymentStatus?: 'pending' | 'completed' | 'failed' | 'expired';
+  paymentDeadline?: Date;
+  isPaid?: boolean;
+  paymentId?: Types.ObjectId;
 }
 
 const reservationSchema = new Schema<ReservationDocument>(
@@ -66,6 +70,23 @@ const reservationSchema = new Schema<ReservationDocument>(
       type: String,
       trim: true,
       maxlength: 500,
+    },
+    paymentStatus: {
+      type: String,
+      enum: ['pending', 'completed', 'failed', 'expired'],
+      default: 'pending',
+    },
+    paymentDeadline: {
+      type: Date,
+      index: true, // For efficient expiry job queries
+    },
+    isPaid: {
+      type: Boolean,
+      default: false,
+    },
+    paymentId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Payment',
     },
   },
   {

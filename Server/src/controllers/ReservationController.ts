@@ -7,6 +7,7 @@ import { Connector } from '../models/Connector';
 import { Vehicle } from '../models/Vehicle';
 import { ReservationStatus } from '@chargebd/shared';
 import { logger } from '../utils/logger';
+import { reservationExpiryQueue, paymentReminderQueue } from '../config/queue';
 
 // Simple QR code generator
 const generateQRCodeString = (): string => {
@@ -306,6 +307,9 @@ export class ReservationController {
       // Generate OTP
       const otp = generateOTP(6);
 
+      // Calculate payment deadline (30 minutes from now)
+      const paymentDeadline = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+
       // Create reservation
       const reservation = new Reservation({
         userId,
@@ -318,9 +322,54 @@ export class ReservationController {
         qrCode: qrCodeString,
         otp,
         totalCostBDT,
+        paymentStatus: 'pending',
+        paymentDeadline,
+        isPaid: false,
       });
 
       await reservation.save();
+
+      // Schedule payment reminder (25 minutes from now, 5 minutes before expiry)
+      try {
+        if (paymentReminderQueue) {
+          await paymentReminderQueue.add(
+            'send-payment-reminder',
+            { reservationId: reservation._id.toString() },
+            {
+              delay: 25 * 60 * 1000, // 25 minutes
+              jobId: `reminder-${reservation._id}`,
+              removeOnComplete: true,
+            }
+          );
+          logger.info(`Payment reminder scheduled for reservation ${reservation._id}`);
+        } else {
+          logger.warn('Payment reminder queue not available - Redis may not be running');
+        }
+      } catch (queueError) {
+        logger.error('Failed to schedule payment reminder:', queueError);
+        // Don't fail the reservation creation if queue fails
+      }
+
+      // Schedule automatic expiry check (30 minutes from now)
+      try {
+        if (reservationExpiryQueue) {
+          await reservationExpiryQueue.add(
+            'check-reservation-expiry',
+            { reservationId: reservation._id.toString() },
+            {
+              delay: 30 * 60 * 1000, // 30 minutes
+              jobId: `expiry-${reservation._id}`,
+              removeOnComplete: true,
+            }
+          );
+          logger.info(`Expiry check scheduled for reservation ${reservation._id}`);
+        } else {
+          logger.warn('Expiry queue not available - Redis may not be running');
+        }
+      } catch (queueError) {
+        logger.error('Failed to schedule expiry check:', queueError);
+        // Don't fail the reservation creation if queue fails
+      }
 
       // Generate QR code image as data URL
       const qrCodeDataURL = await QRCode.toDataURL(qrCodeString, {
