@@ -120,42 +120,61 @@ const Navigation: React.FC = () => {
                 {isUserMenuOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
                     <Link
+                      to="/dashboard"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setIsUserMenuOpen(false)}
+                    >
+                      Dashboard
+                    </Link>
+                    <Link
                       to="/profile"
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       onClick={() => setIsUserMenuOpen(false)}
                     >
                       Profile
                     </Link>
-                    {user?.role === 'operator' || user?.role === 'admin' ? (
-                      <Link
-                        to="/operator/dashboard"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => setIsUserMenuOpen(false)}
-                      >
-                        My Stations
-                      </Link>
-                    ) : null}
                     <Link
-                      to="/reservations"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => setIsUserMenuOpen(false)}
-                    >
-                      My Reservations
-                    </Link>
-                    <Link
-                      to="/vehicles"
+                      to="/my-vehicles"
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       onClick={() => setIsUserMenuOpen(false)}
                     >
                       My Vehicles
                     </Link>
                     <Link
-                      to="/settings"
+                      to="/my-reservations"
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       onClick={() => setIsUserMenuOpen(false)}
                     >
-                      Settings
+                      My Reservations
                     </Link>
+                    <Link
+                      to="/transactions"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setIsUserMenuOpen(false)}
+                    >
+                      Transactions
+                    </Link>
+                    {user?.role === 'operator' || user?.role === 'admin' ? (
+                      <>
+                        <hr className="my-1" />
+                        <Link
+                          to="/operator/dashboard"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={() => setIsUserMenuOpen(false)}
+                        >
+                          My Stations
+                        </Link>
+                      </>
+                    ) : null}
+                    {user?.role === 'admin' ? (
+                      <Link
+                        to="/admin/dashboard"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        Admin Panel
+                      </Link>
+                    ) : null}
                     <hr className="my-1" />
                     <button
                       onClick={handleLogout}
@@ -250,11 +269,39 @@ const Navigation: React.FC = () => {
                       Welcome, {user?.name || 'User'}
                     </div>
                     <Link
+                      to="/dashboard"
+                      className="block px-3 py-2 rounded-md text-base font-medium text-blue-100 hover:text-white hover:bg-white hover:bg-opacity-10"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Dashboard
+                    </Link>
+                    <Link
                       to="/profile"
                       className="block px-3 py-2 rounded-md text-base font-medium text-blue-100 hover:text-white hover:bg-white hover:bg-opacity-10"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       Profile
+                    </Link>
+                    <Link
+                      to="/my-vehicles"
+                      className="block px-3 py-2 rounded-md text-base font-medium text-blue-100 hover:text-white hover:bg-white hover:bg-opacity-10"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      My Vehicles
+                    </Link>
+                    <Link
+                      to="/my-reservations"
+                      className="block px-3 py-2 rounded-md text-base font-medium text-blue-100 hover:text-white hover:bg-white hover:bg-opacity-10"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      My Reservations
+                    </Link>
+                    <Link
+                      to="/transactions"
+                      className="block px-3 py-2 rounded-md text-base font-medium text-blue-100 hover:text-white hover:bg-white hover:bg-opacity-10"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Transactions
                     </Link>
                     {user?.role === 'operator' || user?.role === 'admin' ? (
                       <Link
@@ -265,27 +312,15 @@ const Navigation: React.FC = () => {
                         My Stations
                       </Link>
                     ) : null}
-                    <Link
-                      to="/reservations"
-                      className="block px-3 py-2 rounded-md text-base font-medium text-blue-100 hover:text-white hover:bg-white hover:bg-opacity-10"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      My Reservations
-                    </Link>
-                    <Link
-                      to="/vehicles"
-                      className="block px-3 py-2 rounded-md text-base font-medium text-blue-100 hover:text-white hover:bg-white hover:bg-opacity-10"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      My Vehicles
-                    </Link>
-                    <Link
-                      to="/settings"
-                      className="block px-3 py-2 rounded-md text-base font-medium text-blue-100 hover:text-white hover:bg-white hover:bg-opacity-10"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      Settings
-                    </Link>
+                    {user?.role === 'admin' ? (
+                      <Link
+                        to="/admin/dashboard"
+                        className="block px-3 py-2 rounded-md text-base font-medium text-blue-100 hover:text-white hover:bg-white hover:bg-opacity-10"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        Admin Panel
+                      </Link>
+                    ) : null}
                     <button
                       onClick={() => {
                         handleLogout();

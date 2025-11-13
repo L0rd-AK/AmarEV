@@ -78,6 +78,8 @@ export const authenticate = async (
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       res.status(401).json({
+        success: false,
+        message: 'Access token is required',
         error: {
           message: 'Access token is required',
           code: 'MISSING_TOKEN',
@@ -96,6 +98,8 @@ export const authenticate = async (
       const user = await User.findById(payload.userId);
       if (!user) {
         res.status(401).json({
+          success: false,
+          message: 'Invalid token - user not found',
           error: {
             message: 'Invalid token - user not found',
             code: 'INVALID_TOKEN',
@@ -111,8 +115,10 @@ export const authenticate = async (
     } catch (jwtError) {
       logger.error('JWT verification failed:', jwtError);
       res.status(401).json({
+        success: false,
+        message: 'Invalid or expired token',
         error: {
-          message: 'Invalid or expired access token',
+          message: 'Invalid or expired token',
           code: 'TOKEN_INVALID',
           statusCode: 401,
         },
@@ -122,6 +128,8 @@ export const authenticate = async (
   } catch (error) {
     logger.error('Authentication error:', error);
     res.status(500).json({
+      success: false,
+      message: 'Authentication failed',
       error: {
         message: 'Authentication failed',
         code: 'AUTH_ERROR',
@@ -172,6 +180,8 @@ export const authorize = (...roles: UserRole[]) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({
+        success: false,
+        message: 'Authentication required',
         error: {
           message: 'Authentication required',
           code: 'AUTHENTICATION_REQUIRED',
@@ -183,6 +193,8 @@ export const authorize = (...roles: UserRole[]) => {
 
     if (!roles.includes(req.user.role)) {
       res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions',
         error: {
           message: 'Insufficient permissions',
           code: 'INSUFFICIENT_PERMISSIONS',
@@ -201,6 +213,8 @@ export const authorizeOwnerOrRole = (...roles: UserRole[]) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({
+        success: false,
+        message: 'Authentication required',
         error: {
           message: 'Authentication required',
           code: 'AUTHENTICATION_REQUIRED',
@@ -216,6 +230,8 @@ export const authorizeOwnerOrRole = (...roles: UserRole[]) => {
 
     if (!isOwner && !hasRole) {
       res.status(403).json({
+        success: false,
+        message: 'Access denied',
         error: {
           message: 'Access denied',
           code: 'ACCESS_DENIED',

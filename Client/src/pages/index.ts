@@ -11,3 +11,8 @@ export { PaymentSuccess } from './PaymentSuccess';
 export { PaymentFailed } from './PaymentFailed';
 export { PaymentCancelled } from './PaymentCancelled';
 export { TransactionHistory } from './TransactionHistory';
+export { AdminDashboard } from './AdminDashboard';
+export { default as UserDashboard } from './UserDashboard';
+export { default as MyVehicles } from './MyVehicles';
+export { default as MyReservations } from './MyReservations';
+

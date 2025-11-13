@@ -1,7 +1,8 @@
 import { Routes, Route } from 'react-router-dom';
 import { 
   Home, Login, Register, EmailVerification, Profile,
-  Stations, StationDetails, OperatorDashboard, StationAnalytics
+  Stations, StationDetails, OperatorDashboard, StationAnalytics,
+  UserDashboard, AdminDashboard, MyVehicles, MyReservations
 } from './pages';
 import { Navigation, Footer, ProtectedRoute } from './components';
 
@@ -31,14 +32,21 @@ function App() {
           <Route path="/verify-email" element={<EmailVerification />} />
           
           {/* Protected User Routes */}
+          <Route path="/dashboard" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/my-vehicles" element={<ProtectedRoute><MyVehicles /></ProtectedRoute>} />
+          <Route path="/my-reservations" element={<ProtectedRoute><MyReservations /></ProtectedRoute>} />
           <Route path="/reservations" element={<ProtectedRoute><ReservationsPage /></ProtectedRoute>} />
           <Route path="/vehicles" element={<ProtectedRoute><VehiclesPage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+          <Route path="/transactions" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           
           {/* Protected Operator Routes */}
           <Route path="/operator/dashboard" element={<ProtectedRoute><OperatorDashboard /></ProtectedRoute>} />
           <Route path="/operator/stations/:id/analytics" element={<ProtectedRoute><StationAnalytics /></ProtectedRoute>} />
+          
+          {/* Protected Admin Routes */}
+          <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
         </Routes>
       </main>
       

@@ -5,7 +5,8 @@ export const sessionRoutes = Router();
 
 // Charging session management
 sessionRoutes.get('/', authenticate, (req, res) => {
-  res.json({ message: 'Get charging sessions', sessions: [] });
+  // Return empty array in expected format
+  res.json({ data: [], count: 0 });
 });
 
 sessionRoutes.post('/start', authenticate, (req, res) => {

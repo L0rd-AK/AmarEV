@@ -1,25 +1,14 @@
 import { Router } from 'express';
-import { authenticate, optionalAuthenticate } from '@/middleware/auth';
+import { authenticate, authorize, optionalAuthenticate } from '../middleware/auth';
+import { ReviewController } from '../controllers/ReviewController';
+import { UserRole } from '@chargebd/shared';
 
 export const reviewRoutes = Router();
 
-// Review management
-reviewRoutes.get('/station/:stationId', optionalAuthenticate, (req, res) => {
-  res.json({ message: 'Get station reviews', stationId: req.params.stationId, reviews: [] });
-});
-
-reviewRoutes.post('/station/:stationId', authenticate, (req, res) => {
-  res.json({ message: 'Add station review', stationId: req.params.stationId, review: req.body });
-});
-
-reviewRoutes.get('/', authenticate, (req, res) => {
-  res.json({ message: 'Get user reviews', reviews: [] });
-});
-
-reviewRoutes.put('/:id', authenticate, (req, res) => {
-  res.json({ message: 'Update review', reviewId: req.params.id });
-});
-
-reviewRoutes.delete('/:id', authenticate, (req, res) => {
-  res.json({ message: 'Delete review', reviewId: req.params.id });
-});
+reviewRoutes.get('/station/:stationId', optionalAuthenticate, ReviewController.getStationReviews);
+reviewRoutes.get('/station/:stationId/stats', ReviewController.getReviewStats);
+reviewRoutes.post('/station/:stationId', authenticate, ReviewController.createReview);
+reviewRoutes.get('/', authenticate, ReviewController.getUserReviews);
+reviewRoutes.put('/:id', authenticate, ReviewController.updateReview);
+reviewRoutes.delete('/:id', authenticate, ReviewController.deleteReview);
+reviewRoutes.put('/:id/flag', authenticate, authorize(UserRole.ADMIN), ReviewController.flagReview);

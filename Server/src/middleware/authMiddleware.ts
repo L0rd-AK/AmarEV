@@ -24,6 +24,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
     if (!token) {
+      logger.warn('No token provided in request');
       res.status(401).json({ 
         success: false,
         message: 'Access token required' 
@@ -32,14 +33,37 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     }
 
     // Verify token
-    const decoded = jwtService.verifyAccessToken(token);
+    let decoded;
+    try {
+      decoded = jwtService.verifyAccessToken(token);
+    } catch (jwtError: any) {
+      logger.error('JWT verification error:', { 
+        error: jwtError.message,
+        tokenPreview: token.substring(0, 20) + '...'
+      });
+      res.status(401).json({ 
+        success: false,
+        message: jwtError.message || 'Invalid or expired token' 
+      });
+      return;
+    }
 
     // Check if user still exists and is active
     const user = await User.findById(decoded.userId);
-    if (!user || user.status !== UserStatus.ACTIVE) {
+    if (!user) {
+      logger.warn('User not found for token:', decoded.userId);
       res.status(401).json({ 
         success: false,
-        message: 'User not found or inactive' 
+        message: 'User not found' 
+      });
+      return;
+    }
+
+    if (user.status !== UserStatus.ACTIVE) {
+      logger.warn('Inactive user attempted access:', { userId: decoded.userId, status: user.status });
+      res.status(401).json({ 
+        success: false,
+        message: 'User account is not active' 
       });
       return;
     }
@@ -51,12 +75,13 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       role: decoded.role,
     };
 
+    logger.debug('User authenticated successfully:', { userId: decoded.userId, email: decoded.email });
     next();
   } catch (error) {
     logger.error('Authentication error:', error);
-    res.status(403).json({ 
+    res.status(500).json({ 
       success: false,
-      message: 'Invalid or expired token' 
+      message: 'Authentication failed' 
     });
     return;
   }

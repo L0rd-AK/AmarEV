@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../components/UI';
 import reservationService from '../services/reservationService';
+import vehicleService from '../services/vehicleService';
 
 interface Connector {
   _id: string;
@@ -60,28 +61,22 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   const loadVehicles = async () => {
     try {
-      // This would call a vehicle service - for now using mock data
-      // TODO: Implement vehicle service and API
-      const mockVehicles: Vehicle[] = [
-        {
-          _id: '1',
-          make: 'Tesla',
-          model: 'Model 3',
-          year: 2023,
-          licensePlate: 'DHK-1234',
-          connectorType: ['Type2', 'CCS2'],
-          usableKWh: 60,
-          isDefault: true,
-        },
-      ];
-      setVehicles(mockVehicles);
+      // Fetch vehicles from API
+      const userVehicles = await vehicleService.getUserVehicles();
+      setVehicles(userVehicles);
       
       // Auto-select default vehicle or first compatible one
-      const compatibleVehicle = mockVehicles.find(v => 
+      const defaultVehicle = userVehicles.find(v => v.isDefault);
+      const compatibleVehicle = userVehicles.find(v => 
         v.connectorType.includes(connector.standard)
       );
+      
       if (compatibleVehicle) {
         setSelectedVehicle(compatibleVehicle._id);
+      } else if (defaultVehicle) {
+        setSelectedVehicle(defaultVehicle._id);
+      } else if (userVehicles.length > 0) {
+        setSelectedVehicle(userVehicles[0]._id);
       }
     } catch (err) {
       console.error('Failed to load vehicles:', err);
@@ -161,6 +156,22 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const handleConfirm = async () => {
     setLoading(true);
     setError('');
+
+    // Check if user is authenticated
+    const accessToken = localStorage.getItem('accessToken');
+    const refreshToken = localStorage.getItem('refreshToken');
+    
+    console.log('Authentication check:', {
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken,
+      accessToken: accessToken?.substring(0, 20) + '...',
+    });
+
+    if (!accessToken || !refreshToken) {
+      setError('Please login to create a reservation');
+      setLoading(false);
+      return;
+    }
 
     try {
       const startDateTime = new Date(`${selectedDate}T${startTime}`);
