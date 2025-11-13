@@ -8,6 +8,9 @@ export const userRoutes = Router();
 userRoutes.get('/profile', authenticate, UserController.getProfile);
 userRoutes.put('/profile', authenticate, UserController.validateProfileUpdate, UserController.updateProfile);
 
+// User statistics
+userRoutes.get('/stats', authenticate, UserController.getUserStats);
+
 // User vehicles
 userRoutes.get('/vehicles', authenticate, (req, res) => {
   res.json({ message: 'Get user vehicles' });

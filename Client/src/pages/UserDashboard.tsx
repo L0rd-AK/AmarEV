@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { LoadingSpinner } from '../components/UI/LoadingSpinner';
 import { Alert } from '../components/UI/Alert';
-import paymentService from '../services/paymentService';
 import axios from 'axios';
 import { config } from '../config';
 import { Link } from 'react-router-dom';
@@ -89,101 +88,14 @@ export const UserDashboard: React.FC = () => {
       const token = localStorage.getItem('accessToken');
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Fetch data in parallel with error handling
-      const [sessionsRes, reservationsRes, paymentStatsRes] = await Promise.allSettled([
-        axios.get(`${config.apiBaseUrl}/sessions`, { headers }).catch(() => ({ data: { data: [] } })),
-        axios.get(`${config.apiBaseUrl}/reservations`, { headers }).catch(() => ({ data: { reservations: [] } })),
-        paymentService.getPaymentStats().catch(() => ({ totalSpent: 0, totalTransactions: 0 })),
-      ]);
-
-      const sessions = sessionsRes.status === 'fulfilled' 
-        ? (sessionsRes.value.data?.data || sessionsRes.value.data?.sessions || sessionsRes.value.data || [])
-        : [];
-      const reservations = reservationsRes.status === 'fulfilled'
-        ? (reservationsRes.value.data?.reservations || reservationsRes.value.data?.data || reservationsRes.value.data || [])
-        : [];
-      const paymentStats = paymentStatsRes.status === 'fulfilled'
-        ? paymentStatsRes.value
-        : { totalSpent: 0, totalTransactions: 0 };
-
-      // Calculate stats
-      const completedSessions = sessions.filter(
-        (s: any) => s.status === 'COMPLETED'
-      );
-      const activeSessions = sessions.filter((s: any) => s.status === 'ACTIVE');
-
-      // Calculate total energy
-      const totalEnergy = completedSessions.reduce(
-        (sum: number, s: any) => sum + (s.totalEnergyKWh || 0),
-        0
-      );
-
-      // Find favorite stations
-      const stationVisits: Record<
-        string,
-        { name: string; count: number; spent: number }
-      > = {};
-      completedSessions.forEach((s: any) => {
-        const stationId = s.stationId?._id || s.stationId;
-        const stationName = s.stationId?.name || 'Unknown Station';
-        if (!stationVisits[stationId]) {
-          stationVisits[stationId] = { name: stationName, count: 0, spent: 0 };
-        }
-        stationVisits[stationId].count++;
-        stationVisits[stationId].spent += s.totalCostBDT || 0;
-      });
-
-      const favoriteStations = Object.entries(stationVisits)
-        .map(([id, data]) => ({
-          _id: id,
-          name: data.name,
-          visitCount: data.count,
-          totalSpent: data.spent,
-        }))
-        .sort((a, b) => b.visitCount - a.visitCount)
-        .slice(0, 3);
-
-      // Build recent activity timeline
-      const recentActivity: any[] = [];
-
-      // Add recent sessions
-      completedSessions.slice(0, 5).forEach((s: any) => {
-        recentActivity.push({
-          type: 'session',
-          title: 'Charging Session Completed',
-          description: `${s.totalEnergyKWh?.toFixed(1)} kWh at ${
-            s.stationId?.name || 'Unknown Station'
-          }`,
-          date: new Date(s.endTime || s.createdAt),
-          amount: s.totalCostBDT,
-        });
-      });
-
-      // Add recent reservations
-      reservations.slice(0, 3).forEach((r: any) => {
-        recentActivity.push({
-          type: 'reservation',
-          title: 'Reservation Created',
-          description: `${r.stationId?.name || 'Unknown Station'} - ${
-            r.connectorType
-          }`,
-          date: new Date(r.createdAt),
-        });
-      });
-
-      // Sort by date
-      recentActivity.sort((a, b) => b.date.getTime() - a.date.getTime());
-
-      setStats({
-        totalSessions: sessions.length,
-        completedSessions: completedSessions.length,
-        activeSessions: activeSessions.length,
-        totalEnergyUsed: totalEnergy,
-        totalSpent: paymentStats.totalSpent || 0,
-        totalReservations: reservations.length,
-        favoriteStations,
-        recentActivity: recentActivity.slice(0, 10),
-      });
+      // Fetch user statistics from the new unified endpoint
+      const response = await axios.get(`${config.apiBaseUrl}/users/stats`, { headers });
+      
+      if (response.data.success) {
+        setStats(response.data.data);
+      } else {
+        throw new Error('Failed to fetch statistics');
+      }
     } catch (err) {
       console.error('Error fetching user stats:', err);
       setError('Failed to load dashboard data. Please try again.');
