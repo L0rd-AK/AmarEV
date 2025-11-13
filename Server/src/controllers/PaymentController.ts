@@ -257,6 +257,17 @@ export class PaymentController {
 
   /**
    * Verify payment status
+   * 
+   * This endpoint handles the complete payment verification flow:
+   * 1. Verifies payment with the payment gateway (SSLCommerz/bKash)
+   * 2. Updates payment record in Payment collection (transaction history)
+   * 3. Deletes the reservation from Reservation collection after successful payment
+   * 4. Cancels scheduled expiry and reminder jobs for the reservation
+   * 5. Logs transaction details for audit trail
+   * 
+   * Note: Payments are permanently stored in the Payment collection which serves
+   * as the complete transaction history. Reservations are removed after successful
+   * payment completion as they are only needed during the booking process.
    */
   async verifyPayment(req: AuthenticatedRequest, res: Response) {
     try {
@@ -273,26 +284,18 @@ export class PaymentController {
 
       const response = await paymentService.verifyPayment(paymentMethod, transactionId);
 
-      // If payment is successful, update reservation status
+      // If payment is successful, delete reservation and record transaction
       if (response.success && response.status === PaymentStatus.COMPLETED) {
         try {
           // Find payment record to get reservation ID
           const payment = await paymentService.getPayment(transactionId);
           
           if (payment && payment.reservationId) {
-            // Update reservation as paid
+            // Find and delete the reservation
             const reservation = await Reservation.findById(payment.reservationId);
             
             if (reservation && !reservation.isPaid) {
-              reservation.isPaid = true;
-              reservation.paymentStatus = 'completed';
-              reservation.paymentId = new Types.ObjectId(payment._id);
-              reservation.status = ReservationStatus.CONFIRMED;
-              await reservation.save();
-
-              logger.info(`Reservation ${reservation._id} marked as paid`);
-
-              // Cancel scheduled expiry and reminder jobs
+              // Cancel scheduled expiry and reminder jobs before deletion
               try {
                 if (reservationExpiryQueue && paymentReminderQueue) {
                   await reservationExpiryQueue.remove(`expiry-${reservation._id}`);
@@ -305,11 +308,20 @@ export class PaymentController {
                 logger.warn(`Failed to cancel jobs for reservation ${reservation._id}:`, jobError);
                 // Don't fail the verification if job cancellation fails
               }
+
+              // Delete the reservation from the collection
+              await Reservation.findByIdAndDelete(reservation._id);
+              
+              logger.info(`Reservation ${reservation._id} deleted after successful payment. Transaction ${transactionId} recorded in Payment collection.`);
+            } else if (reservation && reservation.isPaid) {
+              logger.info(`Reservation ${reservation._id} already processed. Skipping deletion.`);
             }
+          } else {
+            logger.info(`Payment ${transactionId} completed and recorded in transaction history (Payment collection).`);
           }
         } catch (updateError) {
-          logger.error('Error updating reservation after payment:', updateError);
-          // Don't fail the verification response if reservation update fails
+          logger.error('Error processing reservation after payment:', updateError);
+          // Don't fail the verification response if reservation processing fails
         }
       }
 
@@ -504,6 +516,37 @@ export class PaymentController {
       );
 
       if (response.success) {
+        // If payment completed via webhook, delete the reservation
+        if (response.status === PaymentStatus.COMPLETED) {
+          try {
+            const payment = await paymentService.getPayment(response.transactionId);
+            
+            if (payment && payment.reservationId) {
+              const reservation = await Reservation.findById(payment.reservationId);
+              
+              if (reservation) {
+                // Cancel scheduled jobs
+                try {
+                  if (reservationExpiryQueue && paymentReminderQueue) {
+                    await reservationExpiryQueue.remove(`expiry-${reservation._id}`);
+                    await paymentReminderQueue.remove(`reminder-${reservation._id}`);
+                    logger.info(`Cancelled expiry and reminder jobs for reservation ${reservation._id} via webhook`);
+                  }
+                } catch (jobError) {
+                  logger.warn(`Failed to cancel jobs for reservation ${reservation._id} via webhook:`, jobError);
+                }
+
+                // Delete the reservation
+                await Reservation.findByIdAndDelete(reservation._id);
+                logger.info(`Reservation ${reservation._id} deleted after webhook payment completion`);
+              }
+            }
+          } catch (deleteError) {
+            logger.error('Error deleting reservation after webhook:', deleteError);
+            // Don't fail the webhook if reservation deletion fails
+          }
+        }
+
         logger.info(`SSLCOMMERZ webhook processed successfully`, {
           transactionId: response.transactionId,
           status: response.status,
@@ -524,6 +567,161 @@ export class PaymentController {
   }
 
   /**
+   * Handle SSLCommerz success callback - redirect to frontend
+   * SSLCommerz sends POST/GET with transaction data
+   * This method verifies the payment and updates the database before redirecting
+   */
+  async sslcommerzSuccess(req: Request, res: Response) {
+    try {
+      // SSLCommerz sends data in either body (POST) or query (GET)
+      const data = req.method === 'POST' ? req.body : req.query;
+      
+      const { tran_id, val_id, amount, card_type, status, bank_tran_id } = data;
+
+      logger.info('SSLCommerz success callback received', {
+        transactionId: tran_id,
+        valId: val_id,
+        amount,
+        status,
+      });
+
+      // Verify the payment with SSLCommerz and update database
+      try {
+        const verificationResponse = await paymentService.verifyPayment(
+          PaymentProvider.SSLCOMMERZ,
+          val_id || tran_id
+        );
+
+        logger.info('Payment verification in success callback', {
+          transactionId: tran_id,
+          verificationSuccess: verificationResponse.success,
+          paymentStatus: verificationResponse.status,
+        });
+
+        // If payment is successful, delete the reservation
+        if (verificationResponse.success && verificationResponse.status === PaymentStatus.COMPLETED) {
+          try {
+            const payment = await paymentService.getPayment(tran_id);
+            
+            if (payment && payment.reservationId) {
+              const reservation = await Reservation.findById(payment.reservationId);
+              
+              if (reservation && !reservation.isPaid) {
+                // Cancel scheduled jobs
+                try {
+                  if (reservationExpiryQueue && paymentReminderQueue) {
+                    await reservationExpiryQueue.remove(`expiry-${reservation._id}`);
+                    await paymentReminderQueue.remove(`reminder-${reservation._id}`);
+                    logger.info(`Cancelled expiry and reminder jobs for reservation ${reservation._id} via success callback`);
+                  }
+                } catch (jobError) {
+                  logger.warn(`Failed to cancel jobs for reservation ${reservation._id}:`, jobError);
+                }
+
+                // Delete the reservation
+                await Reservation.findByIdAndDelete(reservation._id);
+                logger.info(`Reservation ${reservation._id} deleted after payment success callback`);
+              }
+            }
+          } catch (deleteError) {
+            logger.error('Error deleting reservation after success callback:', deleteError);
+            // Don't fail the redirect if reservation deletion fails
+          }
+        }
+      } catch (verifyError) {
+        logger.error('Error verifying payment in success callback:', verifyError);
+        // Continue with redirect even if verification fails - frontend will handle it
+      }
+
+      // Build query parameters for frontend redirect
+      const params = new URLSearchParams({
+        tran_id: tran_id || '',
+        val_id: val_id || '',
+        amount: amount || '',
+        status: status || 'VALID',
+        provider: PaymentProvider.SSLCOMMERZ,
+      });
+
+      if (card_type) params.append('card_type', card_type);
+      if (bank_tran_id) params.append('bank_tran_id', bank_tran_id);
+
+      // Redirect to frontend success page with query parameters
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const redirectUrl = `${frontendUrl}/payment/success?${params.toString()}`;
+      
+      logger.info('Redirecting to frontend', { redirectUrl });
+      
+      res.redirect(redirectUrl);
+    } catch (error) {
+      logger.error('SSLCommerz success callback error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      
+      // Redirect to error page
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      res.redirect(`${frontendUrl}/payment/failed?error=callback_error`);
+    }
+  }
+
+  /**
+   * Handle SSLCommerz fail callback - redirect to frontend
+   */
+  async sslcommerzFail(req: Request, res: Response) {
+    try {
+      const data = req.method === 'POST' ? req.body : req.query;
+      const { tran_id, error } = data;
+
+      logger.info('SSLCommerz fail callback received', {
+        transactionId: tran_id,
+        error,
+      });
+
+      const params = new URLSearchParams({
+        tran_id: tran_id || '',
+        error: error || 'Payment failed',
+      });
+
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      res.redirect(`${frontendUrl}/payment/failed?${params.toString()}`);
+    } catch (error) {
+      logger.error('SSLCommerz fail callback error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      res.redirect(`${frontendUrl}/payment/failed?error=callback_error`);
+    }
+  }
+
+  /**
+   * Handle SSLCommerz cancel callback - redirect to frontend
+   */
+  async sslcommerzCancel(req: Request, res: Response) {
+    try {
+      const data = req.method === 'POST' ? req.body : req.query;
+      const { tran_id } = data;
+
+      logger.info('SSLCommerz cancel callback received', {
+        transactionId: tran_id,
+      });
+
+      const params = new URLSearchParams({
+        tran_id: tran_id || '',
+      });
+
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      res.redirect(`${frontendUrl}/payment/cancelled?${params.toString()}`);
+    } catch (error) {
+      logger.error('SSLCommerz cancel callback error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      res.redirect(`${frontendUrl}/payment/cancelled?error=callback_error`);
+    }
+  }
+
+  /**
    * Handle bKash webhook
    */
   async bkashWebhook(req: Request, res: Response) {
@@ -537,6 +735,37 @@ export class PaymentController {
       );
 
       if (response.success) {
+        // If payment completed via webhook, delete the reservation
+        if (response.status === PaymentStatus.COMPLETED) {
+          try {
+            const payment = await paymentService.getPayment(response.transactionId);
+            
+            if (payment && payment.reservationId) {
+              const reservation = await Reservation.findById(payment.reservationId);
+              
+              if (reservation) {
+                // Cancel scheduled jobs
+                try {
+                  if (reservationExpiryQueue && paymentReminderQueue) {
+                    await reservationExpiryQueue.remove(`expiry-${reservation._id}`);
+                    await paymentReminderQueue.remove(`reminder-${reservation._id}`);
+                    logger.info(`Cancelled expiry and reminder jobs for reservation ${reservation._id} via webhook`);
+                  }
+                } catch (jobError) {
+                  logger.warn(`Failed to cancel jobs for reservation ${reservation._id} via webhook:`, jobError);
+                }
+
+                // Delete the reservation
+                await Reservation.findByIdAndDelete(reservation._id);
+                logger.info(`Reservation ${reservation._id} deleted after webhook payment completion`);
+              }
+            }
+          } catch (deleteError) {
+            logger.error('Error deleting reservation after webhook:', deleteError);
+            // Don't fail the webhook if reservation deletion fails
+          }
+        }
+
         logger.info(`bKash webhook processed successfully`, {
           transactionId: response.transactionId,
           status: response.status,
@@ -572,6 +801,99 @@ export class PaymentController {
     } catch (error) {
       logger.error(`Get payment stats error`, {
         userId: req.userId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+      });
+    }
+  }
+
+  /**
+   * Manually re-verify a pending payment (for troubleshooting)
+   * This can be used to fix payments that were completed but stuck in pending status
+   */
+  async reVerifyPayment(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { transactionId } = req.params;
+      
+      if (!transactionId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Transaction ID is required',
+        });
+      }
+
+      // Get the payment record
+      const payment = await paymentService.getPayment(transactionId);
+      if (!payment) {
+        return res.status(404).json({
+          success: false,
+          error: 'Payment not found',
+        });
+      }
+
+      // Check if user has permission (must be owner, operator, or admin)
+      if (
+        req.user!.role !== 'admin' &&
+        req.user!.role !== 'operator' &&
+        payment.userId.toString() !== req.userId!
+      ) {
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied',
+        });
+      }
+
+      logger.info(`Manual re-verification requested for payment ${transactionId}`, {
+        userId: req.userId,
+        userRole: req.user!.role,
+      });
+
+      // Re-verify with the payment gateway
+      const verificationResponse = await paymentService.verifyPayment(
+        payment.provider as PaymentProvider,
+        payment.gatewayTransactionId || transactionId
+      );
+
+      // If payment is completed, delete the reservation
+      if (verificationResponse.success && verificationResponse.status === PaymentStatus.COMPLETED) {
+        try {
+          if (payment.reservationId) {
+            const reservation = await Reservation.findById(payment.reservationId);
+            
+            if (reservation && !reservation.isPaid) {
+              // Cancel scheduled jobs
+              try {
+                if (reservationExpiryQueue && paymentReminderQueue) {
+                  await reservationExpiryQueue.remove(`expiry-${reservation._id}`);
+                  await paymentReminderQueue.remove(`reminder-${reservation._id}`);
+                  logger.info(`Cancelled jobs for reservation ${reservation._id} during re-verification`);
+                }
+              } catch (jobError) {
+                logger.warn(`Failed to cancel jobs:`, jobError);
+              }
+
+              // Delete the reservation
+              await Reservation.findByIdAndDelete(reservation._id);
+              logger.info(`Reservation ${reservation._id} deleted during re-verification`);
+            }
+          }
+        } catch (deleteError) {
+          logger.error('Error deleting reservation during re-verification:', deleteError);
+        }
+      }
+
+      res.json({
+        success: true,
+        data: verificationResponse,
+        message: 'Payment re-verified successfully',
+      });
+    } catch (error) {
+      logger.error(`Re-verify payment error`, {
+        transactionId: req.params.transactionId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
 

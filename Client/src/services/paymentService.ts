@@ -179,6 +179,23 @@ class PaymentService {
   }
 
   /**
+   * Re-verify a pending payment (for troubleshooting)
+   */
+  async reVerifyPayment(transactionId: string): Promise<any> {
+    try {
+      const response = await axios.post(
+        `${API_URL}/payments/${transactionId}/re-verify`,
+        {},
+        this.getAuthHeaders()
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Payment re-verification error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get payment history
    */
   async getPaymentHistory(page: number = 1, limit: number = 10): Promise<PaymentHistory> {

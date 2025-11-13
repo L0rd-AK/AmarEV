@@ -13,6 +13,7 @@ export const TransactionHistory: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [verifying, setVerifying] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -85,6 +86,21 @@ export const TransactionHistory: React.FC = () => {
       await paymentService.downloadReceipt(transactionId);
     } catch (error) {
       console.error('Download error:', error);
+    }
+  };
+
+  const handleRetryVerification = async (transactionId: string) => {
+    try {
+      setVerifying(transactionId);
+      await paymentService.reVerifyPayment(transactionId);
+      // Reload data after verification
+      await loadData();
+      alert('Payment verification completed. Status updated.');
+    } catch (error: any) {
+      console.error('Retry verification error:', error);
+      alert(error.response?.data?.error || 'Failed to verify payment. Please try again.');
+    } finally {
+      setVerifying(null);
     }
   };
 
@@ -223,13 +239,25 @@ export const TransactionHistory: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(payment.status)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                         <button
                           onClick={() => handleViewReceipt(payment)}
                           className="text-green-600 hover:text-green-700 font-medium"
                         >
                           View Receipt
                         </button>
+                        {payment.status === PaymentStatus.PENDING && (
+                          <>
+                            <span className="text-gray-300">|</span>
+                            <button
+                              onClick={() => handleRetryVerification(payment.transactionId)}
+                              disabled={verifying === payment.transactionId}
+                              className="text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {verifying === payment.transactionId ? 'Verifying...' : 'Retry Verify'}
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))

@@ -35,8 +35,8 @@ export const PaymentIntegration: React.FC<PaymentIntegrationProps> = ({
       setError(null);
       setShowProcessing(true);
 
-      const frontendUrl = window.location.origin;
-      
+      // Don't specify callback URLs - let backend use its default URLs
+      // Backend will handle SSLCommerz callbacks and redirect to frontend with query params
       const response = await paymentService.initiatePayment({
         reservationId,
         sessionId,
@@ -44,9 +44,7 @@ export const PaymentIntegration: React.FC<PaymentIntegrationProps> = ({
         currency: 'BDT',
         paymentMethod: selectedMethod,
         description,
-        successUrl: `${frontendUrl}/payment/success`,
-        failUrl: `${frontendUrl}/payment/failed`,
-        cancelUrl: `${frontendUrl}/payment/cancelled`,
+        // successUrl, failUrl, cancelUrl omitted - backend handles redirects
       });
 
       if (response.success && response.data) {

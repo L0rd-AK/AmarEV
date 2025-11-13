@@ -2,8 +2,11 @@ import { Routes, Route } from 'react-router-dom';
 import { 
   Home, Login, Register, EmailVerification, Profile,
   Stations, StationDetails, OperatorDashboard, StationAnalytics,
-  UserDashboard, AdminDashboard, MyVehicles, MyReservations
+  UserDashboard, AdminDashboard, MyVehicles, MyReservations, TransactionHistory
 } from './pages';
+import { PaymentSuccess } from './pages/PaymentSuccess';
+import { PaymentFailed } from './pages/PaymentFailed';
+import { PaymentCancelled } from './pages/PaymentCancelled';
 import { Navigation, Footer, ProtectedRoute } from './components';
 
 // Simple placeholder components for now
@@ -31,15 +34,22 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/verify-email" element={<EmailVerification />} />
           
+          {/* Payment Routes */}
+          <Route path="/payment/success" element={<PaymentSuccess />} />
+          <Route path="/payment/success/:id" element={<PaymentSuccess />} />
+          <Route path="/payment/failed" element={<PaymentFailed />} />
+          <Route path="/payment/cancelled" element={<PaymentCancelled />} />
+          
           {/* Protected User Routes */}
           <Route path="/dashboard" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/my-vehicles" element={<ProtectedRoute><MyVehicles /></ProtectedRoute>} />
           <Route path="/my-reservations" element={<ProtectedRoute><MyReservations /></ProtectedRoute>} />
+          <Route path="/transaction-history" element={<ProtectedRoute><TransactionHistory /></ProtectedRoute>} />
           <Route path="/reservations" element={<ProtectedRoute><ReservationsPage /></ProtectedRoute>} />
           <Route path="/vehicles" element={<ProtectedRoute><VehiclesPage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-          <Route path="/transactions" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+          <Route path="/transactions" element={<ProtectedRoute><TransactionHistory /></ProtectedRoute>} />
           
           {/* Protected Operator Routes */}
           <Route path="/operator/dashboard" element={<ProtectedRoute><OperatorDashboard /></ProtectedRoute>} />
@@ -47,6 +57,19 @@ function App() {
           
           {/* Protected Admin Routes */}
           <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+          
+          {/* Catch-all 404 route */}
+          <Route path="*" element={
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="text-center">
+                <h1 className="text-4xl font-bold text-gray-900">404 - Page Not Found</h1>
+                <p className="mt-4 text-gray-600">Current path: {window.location.pathname}</p>
+                <a href="/" className="mt-6 inline-block px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                  Go Home
+                </a>
+              </div>
+            </div>
+          } />
         </Routes>
       </main>
       

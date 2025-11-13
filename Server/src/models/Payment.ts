@@ -1,6 +1,23 @@
 import { Schema, model, Document, Types } from 'mongoose';
 import { Payment as IPayment, PaymentProvider, PaymentStatus } from '@chargebd/shared';
 
+/**
+ * Payment Model - Transaction History Collection
+ * 
+ * This collection serves as the complete transaction history for all payments
+ * in the system. Each payment record includes:
+ * - Payment gateway details (SSLCommerz, bKash)
+ * - Transaction IDs and status
+ * - Associated reservation or session
+ * - Timeline of payment status changes
+ * - Refund information if applicable
+ * 
+ * All completed payments are permanently stored here for:
+ * - User transaction history
+ * - Financial reporting and analytics
+ * - Audit trail and compliance
+ * - Dispute resolution
+ */
 export interface PaymentDocument extends Omit<IPayment, '_id' | 'userId' | 'reservationId' | 'sessionId'>, Document {
   userId: Types.ObjectId;
   reservationId?: Types.ObjectId;

@@ -148,11 +148,11 @@ const Navigation: React.FC = () => {
                       My Reservations
                     </Link>
                     <Link
-                      to="/transactions"
+                      to="/transaction-history"
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       onClick={() => setIsUserMenuOpen(false)}
                     >
-                      Transactions
+                      Transaction History
                     </Link>
                     {user?.role === 'operator' || user?.role === 'admin' ? (
                       <>
@@ -297,11 +297,11 @@ const Navigation: React.FC = () => {
                       My Reservations
                     </Link>
                     <Link
-                      to="/transactions"
+                      to="/transaction-history"
                       className="block px-3 py-2 rounded-md text-base font-medium text-blue-100 hover:text-white hover:bg-white hover:bg-opacity-10"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      Transactions
+                      Transaction History
                     </Link>
                     {user?.role === 'operator' || user?.role === 'admin' ? (
                       <Link

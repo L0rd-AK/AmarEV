@@ -78,23 +78,34 @@ app.use(helmet({
   },
 }));
 app.use(compression());
-app.use(cors({
-  origin: function (origin, callback) {
-    const allowedOrigins = [
-      process.env.BASE_URL,
-      'http://localhost:3000',
-      'http://localhost:3001',  // Additional port for client
-      'http://localhost:5173',
-    ].filter(Boolean);
-    
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-}));
+
+// Custom CORS middleware - allow payment gateway callbacks
+app.use((req, res, next) => {
+  // Payment gateway callback routes don't need CORS checks
+  if (req.path.includes('/sslcommerz/') || req.path.includes('/webhook/')) {
+    return next();
+  }
+  
+  // Apply CORS for all other routes
+  cors({
+    origin: function (origin, callback) {
+      const allowedOrigins = [
+        process.env.BASE_URL,
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:5173',
+      ].filter(Boolean);
+      
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+  })(req, res, next);
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 

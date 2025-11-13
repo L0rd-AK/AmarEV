@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { PaymentReceipt } from '../components/Payment';
 import { LoadingSpinner } from '../components/UI';
 import paymentService, { Payment } from '../services/paymentService';
@@ -7,6 +7,7 @@ import { PaymentProvider } from '@chargebd/shared';
 
 export const PaymentSuccess: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [payment, setPayment] = useState<Payment | null>(null);
@@ -14,16 +15,31 @@ export const PaymentSuccess: React.FC = () => {
 
   useEffect(() => {
     const verifyPayment = async () => {
-      // SSLCommerz sends: tran_id, val_id, amount, card_type, store_amount, card_no, bank_tran_id, status, tran_date, currency, card_issuer, card_brand, card_issuer_country, card_issuer_country_code
-      const transactionId = searchParams.get('tran_id') || searchParams.get('transactionId');
-      const valId = searchParams.get('val_id');
-      const status = searchParams.get('status');
+      // DEBUG: Log full URL and all parameters
+      console.log('Full URL:', window.location.href);
+      console.log('Search params:', window.location.search);
+      console.log('Path:', window.location.pathname);
       
-      // Default to SSLCommerz since we're only using that
-      const provider = (searchParams.get('provider') as PaymentProvider) || PaymentProvider.SSLCOMMERZ;
+      // Get transaction details from:
+      // 1. URL path parameter (e.g., /payment/success/TXN_123)
+      // 2. Query parameters (e.g., /payment/success?tran_id=TXN_123)
+      const urlParams = new URLSearchParams(window.location.search);
+      
+      // DEBUG: Log all query parameters
+      console.log('All URL params:', Object.fromEntries(urlParams.entries()));
+      
+      // Priority: URL path param > query params
+      let transactionId = id || urlParams.get('tran_id') || urlParams.get('transactionId');
+      let valId = urlParams.get('val_id');
+      let status = urlParams.get('status');
+      
+      console.log('Extracted values:', { transactionId, valId, status, pathId: id });
+      
+      const provider = (urlParams.get('provider') as PaymentProvider) || PaymentProvider.SSLCOMMERZ;
 
       if (!transactionId) {
-        setError('Invalid payment callback - No transaction ID');
+        console.error('No transaction ID found in URL');
+        setError('Invalid payment callback - No transaction ID found in URL. Please check the payment link or try again.');
         setLoading(false);
         return;
       }
@@ -38,18 +54,47 @@ export const PaymentSuccess: React.FC = () => {
       try {
         console.log('Verifying payment:', { transactionId, valId, status, provider });
         
-        // Verify payment with backend
+        // If we only have transactionId (from URL path), fetch payment directly
+        if (id && !valId) {
+          // Direct fetch when accessing via /payment/success/:id
+          const paymentData = await paymentService.getPayment(transactionId);
+          setPayment(paymentData);
+          setLoading(false);
+          return;
+        }
+        
+        // Otherwise, verify with payment gateway first
         const response = await paymentService.verifyPayment({
-          transactionId: valId || transactionId, // Use val_id for SSLCommerz validation
+          transactionId: valId || transactionId,
           paymentMethod: provider,
         });
 
         console.log('Verification response:', response);
 
         if (response.success && response.data?.success) {
-          // Fetch full payment details
-          const paymentData = await paymentService.getPayment(transactionId);
-          setPayment(paymentData);
+          // Try to fetch full payment details
+          try {
+            const paymentData = await paymentService.getPayment(transactionId);
+            setPayment(paymentData);
+          } catch (fetchError: any) {
+            console.warn('Could not fetch full payment details:', fetchError);
+            // Payment verified successfully but can't fetch details
+            // Show success message without full details
+            setPayment({
+              _id: '',
+              transactionId,
+              userId: '',
+              amount: response.data.amount || 0,
+              amountBDT: response.data.amount || 0,
+              currency: response.data.currency || 'BDT',
+              status: 'completed',
+              paymentMethod: provider,
+              provider: provider,
+              paidAt: response.data.paidAt || new Date().toISOString(),
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            } as any);
+          }
           
           // Clear pending payment data from localStorage
           localStorage.removeItem('pendingPaymentTransaction');
@@ -67,7 +112,7 @@ export const PaymentSuccess: React.FC = () => {
     };
 
     verifyPayment();
-  }, [searchParams]);
+  }, [searchParams, id]);
 
   const handleDownload = async () => {
     if (payment) {
@@ -83,8 +128,12 @@ export const PaymentSuccess: React.FC = () => {
     navigate('/');
   };
 
-  const handleViewReservations = () => {
-    navigate('/profile?tab=reservations');
+  const handleViewTransactions = () => {
+    navigate('/transaction-history');
+  };
+
+  const handleGoToDashboard = () => {
+    navigate('/dashboard');
   };
 
   if (loading) {
@@ -150,7 +199,10 @@ export const PaymentSuccess: React.FC = () => {
             <div>
               <h1 className="text-2xl font-bold text-green-900">Payment Successful!</h1>
               <p className="text-green-700">
-                Your payment has been processed and your reservation is confirmed.
+                Your payment has been processed successfully and your charging session is confirmed.
+              </p>
+              <p className="text-green-600 text-sm mt-1">
+                Transaction receipt and details are available in your Transaction History.
               </p>
             </div>
           </div>
@@ -168,10 +220,16 @@ export const PaymentSuccess: React.FC = () => {
         {/* Actions */}
         <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
           <button
-            onClick={handleViewReservations}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            onClick={handleGoToDashboard}
+            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold"
           >
-            View My Reservations
+            Go to Dashboard
+          </button>
+          <button
+            onClick={handleViewTransactions}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            View Transaction History
           </button>
           <button
             onClick={handleGoHome}

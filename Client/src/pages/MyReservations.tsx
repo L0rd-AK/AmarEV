@@ -92,6 +92,23 @@ export const MyReservations: React.FC = () => {
 
   useEffect(() => {
     fetchReservations();
+    
+    // Refresh reservations when page becomes visible (e.g., returning from payment)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchReservations();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Also refresh when window gains focus
+    window.addEventListener('focus', fetchReservations);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', fetchReservations);
+    };
   }, []);
 
   const fetchReservations = async () => {
@@ -118,7 +135,12 @@ export const MyReservations: React.FC = () => {
       // Not wrapped in { success, data: { reservations } }
       const reservationsData = (response as any).reservations || response.data?.reservations || [];
       console.log('Extracted reservations:', reservationsData);
-      setReservations(reservationsData);
+      
+      // Filter out already paid reservations (these should be deleted but filter as safety)
+      const activeReservations = reservationsData.filter((r: Reservation) => !r.isPaid);
+      console.log('Active (unpaid) reservations:', activeReservations);
+      
+      setReservations(activeReservations);
     } catch (err) {
       console.error('Error fetching reservations:', err);
       setError('Failed to load reservations');
@@ -235,7 +257,25 @@ export const MyReservations: React.FC = () => {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">My Reservations</h1>
-        <p className="mt-2 text-gray-600">View and manage your charging reservations</p>
+        <p className="mt-2 text-gray-600">View and manage your pending charging reservations</p>
+      </div>
+
+      {/* Info Message */}
+      <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-start">
+          <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+            <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <div>
+            <p className="text-sm text-blue-800">
+              <strong>Note:</strong> This page shows only pending reservations awaiting payment. 
+              Once payment is completed, the reservation is removed and the transaction is saved to your{' '}
+              <Link to="/transaction-history" className="font-semibold underline hover:text-blue-900">
+                Transaction History
+              </Link>.
+            </p>
+          </div>
+        </div>
       </div>
 
       {error && (
