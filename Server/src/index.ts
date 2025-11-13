@@ -4,6 +4,16 @@ import path from 'path';
 // Load environment variables first, before any other imports
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
+// Validate critical environment variables
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET is not defined in environment variables');
+  process.exit(1);
+}
+if (!process.env.JWT_REFRESH_SECRET) {
+  console.error('FATAL: JWT_REFRESH_SECRET is not defined in environment variables');
+  process.exit(1);
+}
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -27,6 +37,7 @@ import paymentRoutes from '@/routes/payments';
 import routeRoutes from '@/routes/routes';
 import { reviewRoutes } from '@/routes/reviews';
 import { adminRoutes } from '@/routes/admin';
+import debugRoutes from '@/routes/debug';
 
 const app = express();
 const server = createServer(app);
@@ -108,6 +119,11 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/admin', adminRoutes);
+
+// Debug routes (remove in production!)
+if (process.env.NODE_ENV === 'development') {
+  app.use('/api/debug', debugRoutes);
+}
 
 // 404 handler
 app.use('*', (req, res) => {

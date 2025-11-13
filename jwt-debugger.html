@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JWT Token Debugger - AmarEV</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: #667eea;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .content {
+            padding: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        button.danger {
+            background: #ef4444;
+        }
+        button.danger:hover {
+            background: #dc2626;
+        }
+        .result {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+        }
+        .success { color: #10b981; font-weight: bold; }
+        .error { color: #ef4444; font-weight: bold; }
+        .warning { color: #f59e0b; font-weight: bold; }
+        .info { color: #3b82f6; }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .badge-success { background: #d1fae5; color: #065f46; }
+        .badge-error { background: #fee2e2; color: #991b1b; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 JWT Token Debugger</h1>
+            <p>Debug JWT authentication issues for AmarEV</p>
+        </div>
+
+        <div class="content">
+            <!-- Step 1: Clear Storage -->
+            <div class="section">
+                <h2>Step 1: Clear Browser Storage</h2>
+                <p>Clear all tokens and cached data to start fresh.</p>
+                <button onclick="clearAllStorage()">🗑️ Clear All Storage</button>
+                <button onclick="checkStorage()">👁️ Check Current Storage</button>
+                <div id="storage-result" class="result" style="display: none;"></div>
+            </div>
+
+            <!-- Step 2: Check Server -->
+            <div class="section">
+                <h2>Step 2: Check Server Configuration</h2>
+                <p>Verify the server is running and JWT is configured correctly.</p>
+                <button onclick="checkServer()">🔍 Check Server Health</button>
+                <button onclick="checkJWT()">🔑 Check JWT Config</button>
+                <div id="server-result" class="result" style="display: none;"></div>
+            </div>
+
+            <!-- Step 3: Test Current Token -->
+            <div class="section">
+                <h2>Step 3: Test Your Current Token</h2>
+                <p>If you're logged in, test if your current token is valid.</p>
+                <button onclick="testCurrentToken()">🧪 Test Current Token</button>
+                <div id="token-result" class="result" style="display: none;"></div>
+            </div>
+
+            <!-- Step 4: Manual Test -->
+            <div class="section">
+                <h2>Step 4: Manual Token Test</h2>
+                <p>Paste a token to test it manually.</p>
+                <textarea id="manual-token" placeholder="Paste JWT token here..." style="width: 100%; height: 100px; padding: 10px; border-radius: 6px; border: 1px solid #e5e7eb; font-family: monospace; font-size: 12px;"></textarea>
+                <button onclick="testManualToken()">🔬 Verify Token</button>
+                <div id="manual-result" class="result" style="display: none;"></div>
+            </div>
+
+            <!-- Step 5: Instructions -->
+            <div class="section">
+                <h2>Step 5: What to Do Next</h2>
+                <div id="instructions">
+                    <p>1. Click "Clear All Storage" above</p>
+                    <p>2. Go to <a href="http://localhost:3000/login" target="_blank">Login Page</a></p>
+                    <p>3. Login with your credentials</p>
+                    <p>4. Come back here and click "Test Current Token"</p>
+                    <p>5. Try making a payment</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : type === 'warning' ? 'warning' : 'info';
+            element.innerHTML += `<div class="${className}">${new Date().toLocaleTimeString()}: ${message}</div>`;
+        }
+
+        function clearLog(elementId) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = '';
+        }
+
+        function clearAllStorage() {
+            clearLog('storage-result');
+            log('storage-result', '🗑️ Clearing all storage...', 'info');
+            
+            try {
+                const before = {
+                    accessToken: localStorage.getItem('accessToken') ? 'Present' : 'None',
+                    refreshToken: localStorage.getItem('refreshToken') ? 'Present' : 'None',
+                    other: localStorage.length + ' items'
+                };
+                
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Try to clear IndexedDB
+                indexedDB.deleteDatabase('localforage');
+                
+                const after = {
+                    localStorage: localStorage.length,
+                    sessionStorage: sessionStorage.length
+                };
+                
+                log('storage-result', `Before: ${JSON.stringify(before, null, 2)}`, 'info');
+                log('storage-result', `After: ${JSON.stringify(after, null, 2)}`, 'info');
+                log('storage-result', '✅ Storage cleared successfully!', 'success');
+                log('storage-result', '⚠️ Now refresh the page or login again', 'warning');
+            } catch (error) {
+                log('storage-result', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function checkStorage() {
+            clearLog('storage-result');
+            log('storage-result', '👁️ Checking current storage...', 'info');
+            
+            const accessToken = localStorage.getItem('accessToken');
+            const refreshToken = localStorage.getItem('refreshToken');
+            const allKeys = Object.keys(localStorage);
+            
+            log('storage-result', `Access Token: ${accessToken ? 'Present (' + accessToken.length + ' chars)' : 'Missing'}`, accessToken ? 'success' : 'warning');
+            log('storage-result', `Refresh Token: ${refreshToken ? 'Present (' + refreshToken.length + ' chars)' : 'Missing'}`, refreshToken ? 'success' : 'warning');
+            log('storage-result', `Total Items: ${allKeys.length}`, 'info');
+            
+            if (accessToken) {
+                const parts = accessToken.split('.');
+                log('storage-result', `Token Parts: ${parts.length} ${parts.length === 3 ? '✅' : '❌ (Should be 3)'}`, parts.length === 3 ? 'success' : 'error');
+                
+                // Try to decode payload
+                try {
+                    const payload = JSON.parse(atob(parts[1]));
+                    log('storage-result', `Payload: ${JSON.stringify(payload, null, 2)}`, 'info');
+                    
+                    const exp = payload.exp * 1000;
+                    const now = Date.now();
+                    const expired = exp < now;
+                    log('storage-result', `Expires: ${new Date(exp).toLocaleString()}`, expired ? 'error' : 'success');
+                    log('storage-result', expired ? '❌ Token is expired!' : '✅ Token is not expired', expired ? 'error' : 'success');
+                } catch (e) {
+                    log('storage-result', `❌ Failed to decode token: ${e.message}`, 'error');
+                }
+            }
+        }
+
+        async function checkServer() {
+            clearLog('server-result');
+            log('server-result', '🔍 Checking server health...', 'info');
+            
+            try {
+                const response = await fetch(`${API_URL}/../health`);
+                const data = await response.json();
+                log('server-result', `✅ Server is running!`, 'success');
+                log('server-result', `<pre>${JSON.stringify(data, null, 2)}</pre>`, 'info');
+            } catch (error) {
+                log('server-result', `❌ Server is not responding: ${error.message}`, 'error');
+                log('server-result', `Make sure server is running on http://localhost:5000`, 'warning');
+            }
+        }
+
+        async function checkJWT() {
+            clearLog('server-result');
+            log('server-result', '🔑 Checking JWT configuration...', 'info');
+            
+            try {
+                const response = await fetch(`${API_URL}/debug/jwt-check`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    log('server-result', `✅ JWT Check Results:`, 'success');
+                    log('server-result', `<pre>${JSON.stringify(data.data, null, 2)}</pre>`, 'info');
+                } else {
+                    log('server-result', `❌ JWT Check Failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log('server-result', `❌ Error checking JWT: ${error.message}`, 'error');
+                log('server-result', `Make sure server is running and debug routes are enabled`, 'warning');
+            }
+        }
+
+        async function testCurrentToken() {
+            clearLog('token-result');
+            const token = localStorage.getItem('accessToken');
+            
+            if (!token) {
+                log('token-result', '❌ No token found in localStorage', 'error');
+                log('token-result', 'Please login first!', 'warning');
+                return;
+            }
+            
+            log('token-result', '🧪 Testing current token...', 'info');
+            await testToken(token, 'token-result');
+        }
+
+        async function testManualToken() {
+            clearLog('manual-result');
+            const token = document.getElementById('manual-token').value.trim();
+            
+            if (!token) {
+                log('manual-result', '❌ Please paste a token first', 'error');
+                return;
+            }
+            
+            log('manual-result', '🔬 Testing manual token...', 'info');
+            await testToken(token, 'manual-result');
+        }
+
+        async function testToken(token, resultId) {
+            try {
+                const response = await fetch(`${API_URL}/debug/verify-my-token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ token })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    log(resultId, `✅ Token verification results:`, 'success');
+                    log(resultId, `<pre>${JSON.stringify(data.data, null, 2)}</pre>`, 'info');
+                    
+                    // Check if both services verified successfully
+                    const jwtSuccess = !data.data.jwtService.error;
+                    const authSuccess = !data.data.authService.error;
+                    
+                    if (jwtSuccess && authSuccess) {
+                        log(resultId, '🎉 Token is valid! Both services verified it successfully.', 'success');
+                    } else if (!jwtSuccess && !authSuccess) {
+                        log(resultId, '❌ Token is invalid! Both services rejected it.', 'error');
+                        log(resultId, 'This usually means the token was signed with a different JWT_SECRET', 'warning');
+                        log(resultId, 'Solution: Clear storage and login again', 'warning');
+                    } else {
+                        log(resultId, '⚠️ Mixed results! One service verified, one failed.', 'warning');
+                        log(resultId, 'This indicates a configuration mismatch.', 'warning');
+                    }
+                } else {
+                    log(resultId, `❌ Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log(resultId, `❌ Request failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-check storage on load
+        window.addEventListener('load', () => {
+            checkStorage();
+        });
+    </script>
+</body>
+</html>

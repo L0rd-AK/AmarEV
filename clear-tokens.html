@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear Auth Tokens - AmarEV</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            max-width: 500px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .info {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        .button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+        .button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        .success {
+            background: #10b981;
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            display: none;
+        }
+        .token-info {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 12px;
+            text-align: left;
+        }
+        .token-info strong {
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔑 Clear Authentication Tokens</h1>
+        <div class="info">
+            <p>You're experiencing a JWT signature error because your stored tokens were signed with a different secret key.</p>
+            <p>Click the button below to clear all authentication tokens from your browser.</p>
+        </div>
+
+        <div id="tokenInfo" class="token-info">
+            <strong>Current Status:</strong><br>
+            <span id="tokenStatus">Checking...</span>
+        </div>
+
+        <button class="button" onclick="clearTokens()">Clear All Tokens</button>
+        
+        <div id="success" class="success">
+            ✓ Tokens cleared successfully! You can now close this page and log in again.
+        </div>
+    </div>
+
+    <script>
+        // Check current token status
+        function checkTokens() {
+            const accessToken = localStorage.getItem('accessToken');
+            const refreshToken = localStorage.getItem('refreshToken');
+            const oldToken = localStorage.getItem('token');
+            
+            let status = [];
+            
+            if (accessToken) {
+                status.push(`Access Token: Present (${accessToken.length} chars)`);
+            } else {
+                status.push('Access Token: Not found');
+            }
+            
+            if (refreshToken) {
+                status.push(`Refresh Token: Present (${refreshToken.length} chars)`);
+            } else {
+                status.push('Refresh Token: Not found');
+            }
+            
+            if (oldToken) {
+                status.push(`Old Token: Found (will be removed)`);
+            }
+            
+            document.getElementById('tokenStatus').innerHTML = status.join('<br>');
+        }
+
+        function clearTokens() {
+            // Clear all token-related items
+            const keysToRemove = [
+                'accessToken',
+                'refreshToken',
+                'token',
+                'user',
+                'auth',
+                'persist:root' // Redux persist
+            ];
+            
+            keysToRemove.forEach(key => {
+                localStorage.removeItem(key);
+            });
+            
+            // Also clear any sessionStorage
+            sessionStorage.clear();
+            
+            // Show success message
+            document.getElementById('success').style.display = 'block';
+            
+            // Update status
+            setTimeout(() => {
+                checkTokens();
+            }, 100);
+            
+            // Optional: Redirect to login after 2 seconds
+            setTimeout(() => {
+                if (confirm('Tokens cleared! Would you like to go to the login page now?')) {
+                    window.location.href = 'http://localhost:3000/login';
+                }
+            }, 2000);
+        }
+
+        // Check tokens on page load
+        checkTokens();
+    </script>
+</body>
+</html>

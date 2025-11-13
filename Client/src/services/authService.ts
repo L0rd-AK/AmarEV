@@ -77,7 +77,14 @@ class ApiClient {
     const url = `${this.baseURL}${endpoint}`;
     
     // Get access token from localStorage
-    const accessToken = localStorage.getItem('accessToken');
+    let accessToken = localStorage.getItem('accessToken');
+    
+    // Validate token format (JWT has 3 parts separated by dots)
+    if (accessToken && accessToken.split('.').length !== 3) {
+      console.warn('Invalid token format detected, clearing auth data');
+      this.clearAuthData();
+      accessToken = null;
+    }
     
     const defaultHeaders: HeadersInit = {
       'Content-Type': 'application/json',
@@ -112,40 +119,57 @@ class ApiClient {
         // Check for nested error structure
         const errorMessage = data.error?.message || data.message || data.error || 'Request failed';
         
-        // Handle token refresh for 401 errors
-        if (response.status === 401 && errorMessage.toLowerCase().includes('token')) {
-          const refreshToken = localStorage.getItem('refreshToken');
-          if (refreshToken) {
-            try {
-              const refreshResponse = await this.refreshAccessToken();
-              if (refreshResponse.success && refreshResponse.data) {
-                // Retry original request with new token
-                const newToken = refreshResponse.data.tokens.accessToken;
-                config.headers = {
-                  ...config.headers,
-                  Authorization: `Bearer ${newToken}`,
-                };
-                const retryResponse = await fetch(url, config);
-                const retryData = await retryResponse.json();
-                
-                if (!retryResponse.ok) {
-                  throw new Error(retryData.error?.message || retryData.message || 'Request failed after retry');
-                }
-                
-                return retryData;
-              }
-            } catch (refreshError) {
-              // Refresh failed, clear auth data and redirect to login
-              console.error('Token refresh failed:', refreshError);
-              this.clearAuthData();
-              window.location.href = '/login';
-              throw new Error('Session expired. Please login again.');
-            }
-          } else {
-            // No refresh token, redirect to login
+        // Handle token errors (expired, invalid signature, etc.)
+        if (response.status === 401) {
+          // Check if it's a signature error or other token issues
+          const isSignatureError = errorMessage.toLowerCase().includes('signature') ||
+                                   errorMessage.toLowerCase().includes('invalid token') ||
+                                   errorMessage.toLowerCase().includes('malformed');
+          
+          if (isSignatureError) {
+            // Invalid signature means token was signed with different secret
+            // Clear auth data and force re-login
+            console.warn('Token signature invalid - clearing auth data');
             this.clearAuthData();
             window.location.href = '/login';
-            throw new Error('Please login to continue');
+            throw new Error('Session invalid. Please login again.');
+          }
+          
+          // Try to refresh for expired tokens
+          if (errorMessage.toLowerCase().includes('token') || errorMessage.toLowerCase().includes('expired')) {
+            const refreshToken = localStorage.getItem('refreshToken');
+            if (refreshToken) {
+              try {
+                const refreshResponse = await this.refreshAccessToken();
+                if (refreshResponse.success && refreshResponse.data) {
+                  // Retry original request with new token
+                  const newToken = refreshResponse.data.tokens.accessToken;
+                  config.headers = {
+                    ...config.headers,
+                    Authorization: `Bearer ${newToken}`,
+                  };
+                  const retryResponse = await fetch(url, config);
+                  const retryData = await retryResponse.json();
+                  
+                  if (!retryResponse.ok) {
+                    throw new Error(retryData.error?.message || retryData.message || 'Request failed after retry');
+                  }
+                  
+                  return retryData;
+                }
+              } catch (refreshError) {
+                // Refresh failed, clear auth data and redirect to login
+                console.error('Token refresh failed:', refreshError);
+                this.clearAuthData();
+                window.location.href = '/login';
+                throw new Error('Session expired. Please login again.');
+              }
+            } else {
+              // No refresh token, redirect to login
+              this.clearAuthData();
+              window.location.href = '/login';
+              throw new Error('Please login to continue');
+            }
           }
         }
         

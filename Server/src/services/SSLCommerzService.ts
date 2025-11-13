@@ -138,22 +138,32 @@ export class SSLCommerzPaymentService implements PaymentProvider {
   private config: SSLCommerzConfig;
 
   constructor() {
+    // In development/sandbox mode, use SSLCommerz test credentials if not provided
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const defaultTestStoreId = 'testbox';
+    const defaultTestPassword = 'qwerty';
+    
     this.config = {
-      storeId: process.env.SSLCOMMERZ_STORE_ID || '',
-      storePassword: process.env.SSLCOMMERZ_STORE_PASSWORD || '',
-      sandboxMode: process.env.NODE_ENV !== 'production',
-      baseUrl: process.env.NODE_ENV === 'production' 
-        ? 'https://securepay.sslcommerz.com'
-        : 'https://sandbox.sslcommerz.com',
+      storeId: process.env.SSLCOMMERZ_STORE_ID || (isDevelopment ? defaultTestStoreId : ''),
+      storePassword: process.env.SSLCOMMERZ_STORE_PASSWORD || (isDevelopment ? defaultTestPassword : ''),
+      sandboxMode: isDevelopment,
+      baseUrl: isDevelopment
+        ? 'https://sandbox.sslcommerz.com'
+        : 'https://securepay.sslcommerz.com',
     };
 
-    // Only require credentials in production or when explicitly testing SSLCOMMERZ
-    if (process.env.NODE_ENV === 'production' && (!this.config.storeId || !this.config.storePassword)) {
+    // Only require credentials in production
+    if (!isDevelopment && (!this.config.storeId || !this.config.storePassword)) {
       throw new Error('SSLCOMMERZ credentials not configured for production');
     }
 
-    if (process.env.NODE_ENV !== 'production') {
-      logger.warn('SSLCOMMERZ service running in development mode with placeholder credentials');
+    if (isDevelopment) {
+      if (process.env.SSLCOMMERZ_STORE_ID) {
+        logger.info(`SSLCOMMERZ running in SANDBOX mode with store ID: ${this.config.storeId}`);
+      } else {
+        logger.warn('SSLCOMMERZ running in DEMO mode with test credentials (testbox)');
+        logger.warn('For actual testing, set SSLCOMMERZ_STORE_ID and SSLCOMMERZ_STORE_PASSWORD in .env');
+      }
     }
   }
 

@@ -103,7 +103,18 @@ export interface RefundRequest {
 
 class PaymentService {
   private getAuthHeaders() {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+    
+    // Validate token format (JWT has 3 parts separated by dots)
+    if (token && token.split('.').length !== 3) {
+      console.warn('Invalid token format in payment service');
+      return {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      };
+    }
+    
     return {
       headers: {
         Authorization: `Bearer ${token}`,

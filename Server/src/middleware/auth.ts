@@ -2,8 +2,9 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { Request, Response, NextFunction } from 'express';
 import { User, UserDocument } from '@/models/User';
-import { UserRole } from '@chargebd/shared';
+import { UserRole, TokenType } from '@chargebd/shared';
 import { logger } from '@/utils/logger';
+import { jwtService } from '@/utils/jwt';
 
 export interface AuthenticatedRequest extends Omit<Request, 'user'> {
   user?: UserDocument;
@@ -14,13 +15,28 @@ export interface JWTPayload {
   userId: string;
   email: string;
   role: UserRole;
+  type?: TokenType;
   iat?: number;
   exp?: number;
 }
 
 export class AuthService {
-  private static readonly JWT_SECRET = process.env.JWT_SECRET!;
-  private static readonly JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET!;
+  private static get JWT_SECRET(): string {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error('JWT_SECRET is not defined in environment variables');
+    }
+    return secret;
+  }
+
+  private static get JWT_REFRESH_SECRET(): string {
+    const secret = process.env.JWT_REFRESH_SECRET;
+    if (!secret) {
+      throw new Error('JWT_REFRESH_SECRET is not defined in environment variables');
+    }
+    return secret;
+  }
+
   private static readonly TOKEN_EXPIRES_IN = process.env.TOKEN_EXPIRES_IN || '15m';
   private static readonly REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || '7d';
 
@@ -33,20 +49,41 @@ export class AuthService {
     return bcrypt.compare(password, hash);
   }
 
-  static generateAccessToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): string {
-    return jwt.sign(payload, this.JWT_SECRET, {
+  static generateAccessToken(payload: Omit<JWTPayload, 'iat' | 'exp' | 'type'>): string {
+    const fullPayload = { ...payload, type: TokenType.ACCESS };
+    return jwt.sign(fullPayload, this.JWT_SECRET, {
       expiresIn: this.TOKEN_EXPIRES_IN,
-    });
+    } as any);
   }
 
-  static generateRefreshToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): string {
-    return jwt.sign(payload, this.JWT_REFRESH_SECRET, {
+  static generateRefreshToken(payload: Omit<JWTPayload, 'iat' | 'exp' | 'type'>): string {
+    const fullPayload = { ...payload, type: TokenType.REFRESH };
+    return jwt.sign(fullPayload, this.JWT_REFRESH_SECRET, {
       expiresIn: this.REFRESH_TOKEN_EXPIRES_IN,
-    });
+    } as any);
   }
 
   static verifyAccessToken(token: string): JWTPayload {
-    return jwt.verify(token, this.JWT_SECRET) as JWTPayload;
+    try {
+      const decoded = jwt.verify(token, this.JWT_SECRET) as JWTPayload;
+      
+      // Log the decoded token for debugging
+      logger.debug('Token decoded successfully', {
+        userId: decoded.userId,
+        type: decoded.type,
+        exp: decoded.exp
+      });
+      
+      return decoded;
+    } catch (error: any) {
+      logger.error('JWT verification failed in AuthService', {
+        errorName: error.name,
+        errorMessage: error.message,
+        tokenPreview: token.substring(0, 30) + '...',
+        secret: 'JWT_SECRET is ' + (this.JWT_SECRET ? 'defined' : 'undefined')
+      });
+      throw error;
+    }
   }
 
   static verifyRefreshToken(token: string): JWTPayload {
@@ -91,8 +128,27 @@ export const authenticate = async (
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
+    // Validate token format
+    if (!token || token.length < 10) {
+      logger.warn('Invalid token format received', {
+        tokenPreview: token?.substring(0, 20) || 'empty',
+        tokenLength: token?.length || 0
+      });
+      res.status(401).json({
+        success: false,
+        message: 'Invalid token format',
+        error: {
+          message: 'Invalid token format',
+          code: 'INVALID_TOKEN_FORMAT',
+          statusCode: 401,
+        },
+      });
+      return;
+    }
+
     try {
-      const payload = AuthService.verifyAccessToken(token);
+      // Use jwtService for verification (consistent with token generation)
+      const payload = jwtService.verifyAccessToken(token);
       
       // Fetch user from database
       const user = await User.findById(payload.userId);
@@ -112,14 +168,25 @@ export const authenticate = async (
       req.user = user;
       req.userId = (user._id as any).toString();
       next();
-    } catch (jwtError) {
-      logger.error('JWT verification failed:', jwtError);
+    } catch (jwtError: any) {
+      const errorMessage = jwtError.name === 'TokenExpiredError' 
+        ? 'Token has expired' 
+        : jwtError.name === 'JsonWebTokenError'
+        ? 'Token is malformed or invalid'
+        : 'Invalid token';
+      
+      logger.warn('JWT verification failed', {
+        errorName: jwtError.name,
+        errorMessage: jwtError.message,
+        tokenPreview: token.substring(0, 20) + '...',
+      });
+      
       res.status(401).json({
         success: false,
-        message: 'Invalid or expired token',
+        message: errorMessage,
         error: {
-          message: 'Invalid or expired token',
-          code: 'TOKEN_INVALID',
+          message: errorMessage,
+          code: jwtError.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'TOKEN_INVALID',
           statusCode: 401,
         },
       });

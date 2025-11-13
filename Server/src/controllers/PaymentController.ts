@@ -1,12 +1,15 @@
 import { Request, Response } from 'express';
-import { PaymentProvider, PaymentStatus } from '@chargebd/shared';
+import { PaymentProvider, PaymentStatus, ReservationStatus } from '@chargebd/shared';
 import { paymentService } from '../services/PaymentService';
 import { bKashService } from '../services/bKashService';
 import { Reservation } from '../models/Reservation';
 import { Session } from '../models/Session';
+import { User } from '../models/User';
 import { logger } from '../utils/logger';
 import { z } from 'zod';
 import { reservationExpiryQueue, paymentReminderQueue } from '../config/queue';
+import { AuthenticatedRequest } from '../middleware/auth';
+import { Types } from 'mongoose';
 
 const initiatePaymentSchema = z.object({
   reservationId: z.string().optional(),
@@ -41,7 +44,7 @@ export class PaymentController {
   /**
    * Initiate a payment
    */
-  async initiatePayment(req: Request, res: Response) {
+  async initiatePayment(req: AuthenticatedRequest, res: Response) {
     try {
       const validation = initiatePaymentSchema.safeParse(req.body);
       if (!validation.success) {
@@ -64,8 +67,17 @@ export class PaymentController {
         cancelUrl,
       } = validation.data;
 
-      const userId = req.user!.id;
+      const userId = req.userId!;
       const transactionId = `TXN_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Fetch full user details for payment
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: 'User not found',
+        });
+      }
 
       // Validate reservation or session
       let contextData: any = {};
@@ -110,9 +122,9 @@ export class PaymentController {
         currency,
         orderId: transactionId,
         customerInfo: {
-          name: req.user!.name,
-          email: req.user!.email,
-          phone: req.user!.phone || '',
+          name: user.displayName || user.email.split('@')[0] || 'Customer',
+          email: user.email,
+          phone: user.phone || 'N/A',
         },
         description: description || 'EV Charging Service',
         successUrl,
@@ -160,7 +172,7 @@ export class PaymentController {
       }
     } catch (error) {
       logger.error(`Payment initiation error`, {
-        userId: req.user?.id,
+        userId: req.userId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
 
@@ -174,7 +186,7 @@ export class PaymentController {
   /**
    * Execute bKash payment (after user authorization)
    */
-  async executePayment(req: Request, res: Response) {
+  async executePayment(req: AuthenticatedRequest, res: Response) {
     try {
       const validation = executePaymentSchema.safeParse(req.body);
       if (!validation.success) {
@@ -187,10 +199,17 @@ export class PaymentController {
 
       const { paymentId, paymentMethod } = validation.data;
 
-      if (paymentMethod !== paymentMethod.BKASH) {
+      if (paymentMethod !== PaymentProvider.BKASH) {
         return res.status(400).json({
           success: false,
           error: 'Execute payment is only supported for bKash',
+        });
+      }
+
+      if (!bKashService) {
+        return res.status(503).json({
+          success: false,
+          error: 'bKash service is not available',
         });
       }
 
@@ -239,7 +258,7 @@ export class PaymentController {
   /**
    * Verify payment status
    */
-  async verifyPayment(req: Request, res: Response) {
+  async verifyPayment(req: AuthenticatedRequest, res: Response) {
     try {
       const validation = verifyPaymentSchema.safeParse(req.body);
       if (!validation.success) {
@@ -267,8 +286,8 @@ export class PaymentController {
             if (reservation && !reservation.isPaid) {
               reservation.isPaid = true;
               reservation.paymentStatus = 'completed';
-              reservation.paymentId = payment._id;
-              reservation.status = 'confirmed'; // Move to confirmed status
+              reservation.paymentId = new Types.ObjectId(payment._id);
+              reservation.status = ReservationStatus.CONFIRMED;
               await reservation.save();
 
               logger.info(`Reservation ${reservation._id} marked as paid`);
@@ -320,7 +339,7 @@ export class PaymentController {
   /**
    * Process refund
    */
-  async refundPayment(req: Request, res: Response) {
+  async refundPayment(req: AuthenticatedRequest, res: Response) {
     try {
       const validation = refundPaymentSchema.safeParse(req.body);
       if (!validation.success) {
@@ -346,7 +365,7 @@ export class PaymentController {
       if (
         req.user!.role !== 'admin' &&
         req.user!.role !== 'operator' &&
-        payment.userId.toString() !== req.user!.id
+        payment.userId.toString() !== req.userId!
       ) {
         return res.status(403).json({
           success: false,
@@ -361,7 +380,7 @@ export class PaymentController {
           transactionId,
           amount,
           refundId: response.refundId,
-          userId: req.user!.id,
+          userId: req.userId!,
         });
 
         res.json({
@@ -395,11 +414,11 @@ export class PaymentController {
   /**
    * Get user's payment history
    */
-  async getPaymentHistory(req: Request, res: Response) {
+  async getPaymentHistory(req: AuthenticatedRequest, res: Response) {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
-      const userId = req.user!.id;
+      const userId = req.userId!;
 
       const result = await paymentService.getUserPayments(userId, page, limit);
 
@@ -409,7 +428,7 @@ export class PaymentController {
       });
     } catch (error) {
       logger.error(`Get payment history error`, {
-        userId: req.user?.id,
+        userId: req.userId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
 
@@ -423,9 +442,16 @@ export class PaymentController {
   /**
    * Get payment details
    */
-  async getPayment(req: Request, res: Response) {
+  async getPayment(req: AuthenticatedRequest, res: Response) {
     try {
       const { transactionId } = req.params;
+
+      if (!transactionId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Transaction ID is required',
+        });
+      }
 
       const payment = await paymentService.getPayment(transactionId);
       if (!payment) {
@@ -439,7 +465,7 @@ export class PaymentController {
       if (
         req.user!.role !== 'admin' &&
         req.user!.role !== 'operator' &&
-        payment.userId.toString() !== req.user!.id
+        payment.userId.toString() !== req.userId!
       ) {
         return res.status(403).json({
           success: false,
@@ -469,7 +495,7 @@ export class PaymentController {
    */
   async sslcommerzWebhook(req: Request, res: Response) {
     try {
-      const signature = req.headers['x-signature'] as string;
+      const signature = (req.headers['x-signature'] || '') as string;
       
       const response = await paymentService.handleWebhook(
         PaymentProvider.SSLCOMMERZ,
@@ -502,7 +528,7 @@ export class PaymentController {
    */
   async bkashWebhook(req: Request, res: Response) {
     try {
-      const signature = req.headers['x-signature'] as string;
+      const signature = (req.headers['x-signature'] || '') as string;
       
       const response = await paymentService.handleWebhook(
         PaymentProvider.BKASH,
@@ -533,9 +559,9 @@ export class PaymentController {
   /**
    * Get payment statistics for user
    */
-  async getPaymentStats(req: Request, res: Response) {
+  async getPaymentStats(req: AuthenticatedRequest, res: Response) {
     try {
-      const userId = req.user!.id;
+      const userId = req.userId!;
       
       const stats = await paymentService.getUserPaymentStats(userId);
 
@@ -545,7 +571,7 @@ export class PaymentController {
       });
     } catch (error) {
       logger.error(`Get payment stats error`, {
-        userId: req.user?.id,
+        userId: req.userId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
 

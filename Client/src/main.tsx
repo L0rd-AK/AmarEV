@@ -13,6 +13,43 @@ import App from '@/App'
 import { LoadingSpinner } from '@/components/UI'
 import '@/index.css'
 
+// Clean up invalid tokens on app startup
+(() => {
+  const accessToken = localStorage.getItem('accessToken');
+  const oldToken = localStorage.getItem('token');
+  
+  // Remove old 'token' key if it exists
+  if (oldToken) {
+    localStorage.removeItem('token');
+  }
+  
+  // Validate accessToken format (JWT should have 3 parts)
+  if (accessToken && accessToken.split('.').length !== 3) {
+    console.warn('Invalid token format detected, clearing auth data');
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+  }
+  
+  // Try to decode token to check if it's corrupted
+  if (accessToken) {
+    try {
+      const parts = accessToken.split('.');
+      const payload = JSON.parse(atob(parts[1]));
+      
+      // Check if token is expired
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        console.warn('Token expired, clearing auth data');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+      }
+    } catch (e) {
+      console.warn('Failed to decode token, clearing auth data');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+    }
+  }
+})();
+
 // Create a client for React Query
 const queryClient = new QueryClient({
   defaultOptions: {
