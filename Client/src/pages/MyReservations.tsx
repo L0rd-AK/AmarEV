@@ -52,6 +52,9 @@ export const MyReservations: React.FC = () => {
       setLoading(true);
       setError(null);
       const response = await reservationService.getUserReservations();
+      console.log('Reservations API Response:', response);
+      console.log('Reservations data:', response.data);
+      console.log('Reservations array:', response.data?.reservations);
       setReservations(response.data?.reservations as any || []);
     } catch (err) {
       console.error('Error fetching reservations:', err);
@@ -269,13 +272,17 @@ export const MyReservations: React.FC = () => {
                       <div>
                         <span className="text-gray-600">Vehicle: </span>
                         <span className="font-medium text-gray-900">
-                          {reservation.vehicleId?.make} {reservation.vehicleId?.model}
+                          {reservation.vehicleId && typeof reservation.vehicleId === 'object'
+                            ? `${reservation.vehicleId.make} ${reservation.vehicleId.model}`
+                            : 'Vehicle info unavailable'}
                         </span>
                       </div>
                       <div>
                         <span className="text-gray-600">Connector: </span>
                         <span className="font-medium text-gray-900">
-                          {reservation.connectorId?.standard} ({reservation.connectorId?.type})
+                          {reservation.connectorId && typeof reservation.connectorId === 'object'
+                            ? `${reservation.connectorId.standard} (${reservation.connectorId.type})`
+                            : 'Connector info unavailable'}
                         </span>
                       </div>
                     </div>

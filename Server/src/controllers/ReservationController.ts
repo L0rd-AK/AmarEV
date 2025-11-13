@@ -378,8 +378,11 @@ export class ReservationController {
       const reservations = await Reservation.find(filter)
         .populate('vehicleId', 'make model year licensePlate')
         .populate('stationId', 'name address city location photos')
+        .populate('connectorId', 'standard type powerKW')
         .sort({ startTime: -1 })
         .limit(100);
+
+      logger.info(`Found ${reservations.length} reservations for user ${userId}`);
 
       res.json({ reservations, count: reservations.length });
     } catch (error) {
