@@ -9,3 +9,5 @@ export * from './Session';
 export * from './Payment';
 export * from './Review';
 export * from './PricingWindow';
+export * from './Device';
+export * from './DeviceTelemetry';

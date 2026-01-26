@@ -23,8 +23,8 @@ const demoStations = [
     },
     amenities: ['WiFi', 'Cafe', 'Restrooms', 'Waiting Area', '24/7 Access', 'Security'],
     photos: [
-      'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=800',
-      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800',
+      'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=800&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&auto=format&fit=crop',
     ],
     timezone: 'Asia/Dhaka',
     isPublic: true,
@@ -60,7 +60,8 @@ const demoStations = [
     },
     amenities: ['WiFi', 'Restaurant', 'Shopping', 'Wheelchair Accessible', 'EV Lounge', 'Air Conditioning'],
     photos: [
-      'https://images.unsplash.com/photo-1595524534304-86ff7f8ac5e8?w=800',
+      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=800&auto=format&fit=crop',
     ],
     timezone: 'Asia/Dhaka',
     isPublic: true,
@@ -94,7 +95,8 @@ const demoStations = [
     },
     amenities: ['Restrooms', 'Vending Machine', 'Parking', '24/7 Access'],
     photos: [
-      'https://images.unsplash.com/photo-1571609177926-dbe0592b2696?w=800',
+      'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=800&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&auto=format&fit=crop',
     ],
     timezone: 'Asia/Dhaka',
     isPublic: true,
@@ -128,7 +130,8 @@ const demoStations = [
     },
     amenities: ['WiFi', 'Cafe', 'Waiting Area', 'Security'],
     photos: [
-      'https://images.unsplash.com/photo-1593941707445-9c2e9a4e0c60?w=800',
+      'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=800&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&auto=format&fit=crop',
     ],
     timezone: 'Asia/Dhaka',
     isPublic: true,
@@ -162,7 +165,7 @@ const demoStations = [
     },
     amenities: ['WiFi', 'Restaurant', 'ATM', 'Security', 'Waiting Area'],
     photos: [
-      'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?w=800',
+      'https://images.unsplash.com/photo-1587280501635-68a0e82cd5ff?w=800&auto=format&fit=crop',
     ],
     timezone: 'Asia/Dhaka',
     isPublic: true,
@@ -196,7 +199,7 @@ const demoStations = [
     },
     amenities: ['WiFi', 'Cafe', 'Restrooms', 'Parking', 'Security'],
     photos: [
-      'https://images.unsplash.com/photo-1617704548623-340376564e68?w=800',
+      'https://images.unsplash.com/photo-1617704548623-340376564e68?w=800&auto=format&fit=crop',
     ],
     timezone: 'Asia/Dhaka',
     isPublic: true,
@@ -231,7 +234,7 @@ const demoStations = [
     },
     amenities: ['WiFi', 'Cafe', 'Restrooms', 'Wheelchair Accessible', 'Air Conditioning'],
     photos: [
-      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800',
+      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&auto=format&fit=crop',
     ],
     timezone: 'Asia/Dhaka',
     isPublic: true,
@@ -265,7 +268,7 @@ const demoStations = [
     },
     amenities: ['WiFi', 'Cafe', 'Restrooms', 'Waiting Area', 'Vending Machine'],
     photos: [
-      'https://images.unsplash.com/photo-1571609177926-dbe0592b2696?w=800',
+      'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=800&auto=format&fit=crop',
     ],
     timezone: 'Asia/Dhaka',
     isPublic: true,

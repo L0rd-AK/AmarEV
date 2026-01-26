@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { stationService } from '@/services/stationService';
 import { Card, Button, LoadingSpinner } from '@/components/UI';
+import { DeviceMonitoringWidget } from '@/components/Device';
 import { 
   Plus, MapPin, Zap, TrendingUp, DollarSign, 
   Activity, Edit, Trash2, BarChart3, Eye 
@@ -332,6 +333,11 @@ export const OperatorDashboard: React.FC = () => {
                       </div>
                     </div>
                   )}
+
+                  {/* Device Monitoring Widget - Theoretical ESP32 Integration */}
+                  <div className="mt-4 pt-4 border-t">
+                    <DeviceMonitoringWidget stationId={station._id} />
+                  </div>
                 </Card>
               ))}
             </div>

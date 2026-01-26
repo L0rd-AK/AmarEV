@@ -38,6 +38,8 @@ import routeRoutes from '@/routes/routes';
 import { reviewRoutes } from '@/routes/reviews';
 import { adminRoutes } from '@/routes/admin';
 import debugRoutes from '@/routes/debug';
+import { deviceRoutes } from '@/routes/devices';
+import { deviceService } from '@/services/DeviceManagementService';
 
 const app = express();
 const server = createServer(app);
@@ -130,6 +132,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/routes', routeRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/device', deviceRoutes);
 
 // Debug routes (remove in production!)
 if (process.env.NODE_ENV === 'development') {
@@ -175,6 +178,16 @@ async function startServer() {
     // Setup Socket.IO
     setupSocketIO(io);
     logger.info('✅ Socket.IO configured successfully');
+
+    // Start offline device detection cron job (runs every 2 minutes)
+    setInterval(async () => {
+      try {
+        await deviceService.detectOfflineDevices();
+      } catch (error) {
+        logger.error('Error in offline device detection:', error);
+      }
+    }, 2 * 60 * 1000); // 2 minutes
+    logger.info('✅ Device offline detection cron job started');
 
     // Start server
     server.listen(PORT, () => {

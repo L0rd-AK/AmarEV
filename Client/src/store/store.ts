@@ -6,6 +6,7 @@ import { authSlice } from './slices/authSlice';
 import { stationsSlice } from './slices/stationsSlice';
 import { reservationsSlice } from './slices/reservationsSlice';
 import { uiSlice } from './slices/uiSlice';
+import deviceReducer from './slices/deviceSlice';
 
 const persistConfig = {
   key: 'root',
@@ -18,6 +19,7 @@ const rootReducer = combineReducers({
   stations: stationsSlice.reducer,
   reservations: reservationsSlice.reducer,
   ui: uiSlice.reducer,
+  devices: deviceReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

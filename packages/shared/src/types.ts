@@ -41,6 +41,20 @@ export enum ConnectorStatus {
   MAINTENANCE = 'maintenance'
 }
 
+// Device Status (for ESP32 microcontrollers)
+export enum DeviceStatus {
+  ONLINE = 'online',
+  OFFLINE = 'offline',
+  FAULT = 'fault',
+  MAINTENANCE = 'maintenance'
+}
+
+export enum DeviceType {
+  ESP32 = 'esp32',
+  ESP32_S3 = 'esp32-s3',
+  ESP8266 = 'esp8266'
+}
+
 // Reservation Status
 export enum ReservationStatus {
   PENDING = 'pending',
@@ -199,6 +213,52 @@ export interface Reservation {
   paymentId?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface Device {
+  _id: string;
+  deviceId: string;
+  stationId: string;
+  portId?: string;
+  name: string;
+  type: DeviceType;
+  firmwareVersion: string;
+  status: DeviceStatus;
+  lastSeen: Date;
+  ipAddress?: string;
+  macAddress?: string;
+  rssi?: number;
+  isActive: boolean;
+  metadata?: {
+    installDate?: Date;
+    lastMaintenanceDate?: Date;
+    notes?: string;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DeviceTelemetry {
+  _id: string;
+  deviceId: string;
+  stationId: string;
+  portId?: string;
+  type: 'heartbeat' | 'status_update' | 'sensor_data' | 'error' | 'charging_metrics';
+  timestamp: Date;
+  status?: string;
+  voltage?: number;
+  current?: number;
+  power?: number;
+  energyWh?: number;
+  temperature?: number;
+  humidity?: number;
+  connectorStatus?: 'connected' | 'disconnected' | 'charging' | 'idle';
+  rssi?: number;
+  uptime?: number;
+  errorCode?: string;
+  errorMessage?: string;
+  rawData?: Record<string, any>;
+  createdAt: Date;
 }
 
 export interface SessionEvent {

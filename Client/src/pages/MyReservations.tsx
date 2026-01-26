@@ -17,6 +17,7 @@ interface Reservation {
       area: string;
       city: string;
     };
+    photos?: string[];
   };
   connectorId: {
     _id: string;
@@ -345,9 +346,21 @@ export const MyReservations: React.FC = () => {
             return (
               <div
                 key={reservation._id}
-                className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition"
+                className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition"
               >
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div className="flex flex-col lg:flex-row">
+                  {/* Station Image */}
+                  {reservation.stationId?.photos && reservation.stationId.photos.length > 0 && (
+                    <div className="lg:w-48 h-48 lg:h-auto flex-shrink-0">
+                      <img
+                        src={reservation.stationId.photos[0]}
+                        alt={reservation.stationId.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 p-6 flex-1">
                   {/* Left Section */}
                   <div className="flex-1 space-y-3">
                     {/* Station Info */}
@@ -472,6 +485,7 @@ export const MyReservations: React.FC = () => {
                       )}
                     </div>
                   </div>
+                </div>
                 </div>
               </div>
             );

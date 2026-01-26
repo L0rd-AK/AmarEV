@@ -118,15 +118,15 @@ export const Stations: React.FC = () => {
         className="cursor-pointer"
         onClick={() => handleStationClick(station)}
       >
-        <Card className="hover:shadow-lg transition-shadow h-full">
+        <Card className="hover:shadow-lg transition-shadow h-full overflow-hidden">
           {station.photos && station.photos.length > 0 && (
             <img
               src={station.photos[0]}
               alt={station.name}
-              className="w-full h-48 object-cover rounded-t-lg"
+              className="w-full h-48 object-cover"
             />
           )}
-        <div className="p-4">
+          <div className="p-4">
           <div className="flex items-start justify-between mb-2">
             <h3 className="text-lg font-semibold text-gray-900">{station.name}</h3>
             {station.rating && (
@@ -178,8 +178,8 @@ export const Stations: React.FC = () => {
           <Button variant="primary" className="w-full mt-4">
             View Details
           </Button>
-        </div>
-      </Card>
+          </div>
+        </Card>
       </div>
     );
   };
