@@ -291,11 +291,11 @@ export class PaymentController {
           const payment = await paymentService.getPayment(transactionId);
           
           if (payment && payment.reservationId) {
-            // Find and delete the reservation
+            // Find and confirm the reservation (mark as paid)
             const reservation = await Reservation.findById(payment.reservationId);
             
             if (reservation && !reservation.isPaid) {
-              // Cancel scheduled expiry and reminder jobs before deletion
+              // Cancel scheduled expiry and reminder jobs
               try {
                 if (reservationExpiryQueue && paymentReminderQueue) {
                   await reservationExpiryQueue.remove(`expiry-${reservation._id}`);
@@ -309,12 +309,15 @@ export class PaymentController {
                 // Don't fail the verification if job cancellation fails
               }
 
-              // Delete the reservation from the collection
-              await Reservation.findByIdAndDelete(reservation._id);
+              // Confirm the reservation instead of deleting it
+              reservation.status = ReservationStatus.CONFIRMED;
+              reservation.isPaid = true;
+              reservation.paymentStatus = 'completed';
+              await reservation.save();
               
-              logger.info(`Reservation ${reservation._id} deleted after successful payment. Transaction ${transactionId} recorded in Payment collection.`);
+              logger.info(`Reservation ${reservation._id} confirmed after successful payment. Transaction ${transactionId} recorded in Payment collection.`);
             } else if (reservation && reservation.isPaid) {
-              logger.info(`Reservation ${reservation._id} already processed. Skipping deletion.`);
+              logger.info(`Reservation ${reservation._id} already processed. Skipping.`);
             }
           } else {
             logger.info(`Payment ${transactionId} completed and recorded in transaction history (Payment collection).`);
@@ -516,7 +519,7 @@ export class PaymentController {
       );
 
       if (response.success) {
-        // If payment completed via webhook, delete the reservation
+        // If payment completed via webhook, confirm the reservation
         if (response.status === PaymentStatus.COMPLETED) {
           try {
             const payment = await paymentService.getPayment(response.transactionId);
@@ -524,7 +527,7 @@ export class PaymentController {
             if (payment && payment.reservationId) {
               const reservation = await Reservation.findById(payment.reservationId);
               
-              if (reservation) {
+              if (reservation && !reservation.isPaid) {
                 // Cancel scheduled jobs
                 try {
                   if (reservationExpiryQueue && paymentReminderQueue) {
@@ -536,14 +539,17 @@ export class PaymentController {
                   logger.warn(`Failed to cancel jobs for reservation ${reservation._id} via webhook:`, jobError);
                 }
 
-                // Delete the reservation
-                await Reservation.findByIdAndDelete(reservation._id);
-                logger.info(`Reservation ${reservation._id} deleted after webhook payment completion`);
+                // Confirm the reservation instead of deleting it
+                reservation.status = ReservationStatus.CONFIRMED;
+                reservation.isPaid = true;
+                reservation.paymentStatus = 'completed';
+                await reservation.save();
+                logger.info(`Reservation ${reservation._id} confirmed after webhook payment completion`);
               }
             }
-          } catch (deleteError) {
-            logger.error('Error deleting reservation after webhook:', deleteError);
-            // Don't fail the webhook if reservation deletion fails
+          } catch (updateError) {
+            logger.error('Error confirming reservation after webhook:', updateError);
+            // Don't fail the webhook if reservation update fails
           }
         }
 
@@ -598,7 +604,7 @@ export class PaymentController {
           paymentStatus: verificationResponse.status,
         });
 
-        // If payment is successful, delete the reservation
+        // If payment is successful, confirm the reservation
         if (verificationResponse.success && verificationResponse.status === PaymentStatus.COMPLETED) {
           try {
             const payment = await paymentService.getPayment(tran_id);
@@ -618,14 +624,17 @@ export class PaymentController {
                   logger.warn(`Failed to cancel jobs for reservation ${reservation._id}:`, jobError);
                 }
 
-                // Delete the reservation
-                await Reservation.findByIdAndDelete(reservation._id);
-                logger.info(`Reservation ${reservation._id} deleted after payment success callback`);
+                // Confirm the reservation instead of deleting it
+                reservation.status = ReservationStatus.CONFIRMED;
+                reservation.isPaid = true;
+                reservation.paymentStatus = 'completed';
+                await reservation.save();
+                logger.info(`Reservation ${reservation._id} confirmed after payment success callback`);
               }
             }
-          } catch (deleteError) {
-            logger.error('Error deleting reservation after success callback:', deleteError);
-            // Don't fail the redirect if reservation deletion fails
+          } catch (updateError) {
+            logger.error('Error confirming reservation after success callback:', updateError);
+            // Don't fail the redirect if reservation update fails
           }
         }
       } catch (verifyError) {
@@ -735,7 +744,7 @@ export class PaymentController {
       );
 
       if (response.success) {
-        // If payment completed via webhook, delete the reservation
+        // If payment completed via webhook, confirm the reservation
         if (response.status === PaymentStatus.COMPLETED) {
           try {
             const payment = await paymentService.getPayment(response.transactionId);
@@ -743,7 +752,7 @@ export class PaymentController {
             if (payment && payment.reservationId) {
               const reservation = await Reservation.findById(payment.reservationId);
               
-              if (reservation) {
+              if (reservation && !reservation.isPaid) {
                 // Cancel scheduled jobs
                 try {
                   if (reservationExpiryQueue && paymentReminderQueue) {
@@ -755,14 +764,17 @@ export class PaymentController {
                   logger.warn(`Failed to cancel jobs for reservation ${reservation._id} via webhook:`, jobError);
                 }
 
-                // Delete the reservation
-                await Reservation.findByIdAndDelete(reservation._id);
-                logger.info(`Reservation ${reservation._id} deleted after webhook payment completion`);
+                // Confirm the reservation instead of deleting it
+                reservation.status = ReservationStatus.CONFIRMED;
+                reservation.isPaid = true;
+                reservation.paymentStatus = 'completed';
+                await reservation.save();
+                logger.info(`Reservation ${reservation._id} confirmed after webhook payment completion`);
               }
             }
-          } catch (deleteError) {
-            logger.error('Error deleting reservation after webhook:', deleteError);
-            // Don't fail the webhook if reservation deletion fails
+          } catch (updateError) {
+            logger.error('Error confirming reservation after webhook:', updateError);
+            // Don't fail the webhook if reservation update fails
           }
         }
 
@@ -858,7 +870,7 @@ export class PaymentController {
         payment.gatewayTransactionId || transactionId
       );
 
-      // If payment is completed, delete the reservation
+      // If payment is completed, confirm the reservation
       if (verificationResponse.success && verificationResponse.status === PaymentStatus.COMPLETED) {
         try {
           if (payment.reservationId) {
@@ -876,13 +888,16 @@ export class PaymentController {
                 logger.warn(`Failed to cancel jobs:`, jobError);
               }
 
-              // Delete the reservation
-              await Reservation.findByIdAndDelete(reservation._id);
-              logger.info(`Reservation ${reservation._id} deleted during re-verification`);
+              // Confirm the reservation instead of deleting it
+              reservation.status = ReservationStatus.CONFIRMED;
+              reservation.isPaid = true;
+              reservation.paymentStatus = 'completed';
+              await reservation.save();
+              logger.info(`Reservation ${reservation._id} confirmed during re-verification`);
             }
           }
-        } catch (deleteError) {
-          logger.error('Error deleting reservation during re-verification:', deleteError);
+        } catch (updateError) {
+          logger.error('Error confirming reservation during re-verification:', updateError);
         }
       }
 

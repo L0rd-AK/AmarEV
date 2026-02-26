@@ -1,13 +1,44 @@
 import React, { useEffect, useState } from 'react';
 import { LoadingSpinner, Card, Button } from '../components/UI';
 import paymentService, { Payment, PaymentStats } from '../services/paymentService';
-import { PaymentStatus } from '@chargebd/shared';
+import reservationService from '../services/reservationService';
+import { PaymentStatus, ReservationStatus } from '@chargebd/shared';
 import { PaymentReceipt } from '../components/Payment';
+import { Calendar, MapPin, Clock, CheckCircle, Zap } from 'lucide-react';
+
+interface CompletedReservation {
+  _id: string;
+  stationId: {
+    _id: string;
+    name: string;
+    address: { area: string; city: string };
+  };
+  connectorId: {
+    _id: string;
+    standard: string;
+    type: string;
+  };
+  vehicleId: {
+    _id: string;
+    make: string;
+    model: string;
+    licensePlate: string;
+  };
+  startTime: string;
+  endTime: string;
+  status: string;
+  totalCostBDT?: number;
+  estimatedCostBDT?: number;
+  isPaid?: boolean;
+  createdAt: string;
+}
 
 export const TransactionHistory: React.FC = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [completedReservations, setCompletedReservations] = useState<CompletedReservation[]>([]);
   const [stats, setStats] = useState<PaymentStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'payments' | 'completed'>('payments');
   const [error, setError] = useState<string>('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -22,14 +53,20 @@ export const TransactionHistory: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [paymentsData, statsData] = await Promise.all([
+      const [paymentsData, statsData, reservationsResponse] = await Promise.all([
         paymentService.getPaymentHistory(page, 10),
         paymentService.getPaymentStats(),
+        reservationService.getUserReservations(ReservationStatus.COMPLETED),
       ]);
       
       setPayments(paymentsData.payments);
       setTotalPages(paymentsData.totalPages);
       setStats(statsData);
+      
+      // Extract completed reservations
+      const resData = (reservationsResponse as any).reservations || reservationsResponse.data?.reservations || [];
+      setCompletedReservations(resData);
+      
       setError('');
     } catch (err: any) {
       console.error('Load transaction history error:', err);
@@ -188,7 +225,104 @@ export const TransactionHistory: React.FC = () => {
           </div>
         )}
 
+        {/* Tabs */}
+        <div className="mb-6 border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('payments')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
+                activeTab === 'payments'
+                  ? 'border-green-500 text-green-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Payment Records
+              <span className="ml-2 py-0.5 px-2 rounded-full text-xs bg-gray-100">{payments.length}</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('completed')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
+                activeTab === 'completed'
+                  ? 'border-green-500 text-green-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Completed Reservations
+              <span className="ml-2 py-0.5 px-2 rounded-full text-xs bg-gray-100">{completedReservations.length}</span>
+            </button>
+          </nav>
+        </div>
+
+        {/* Completed Reservations Tab */}
+        {activeTab === 'completed' && (
+          <div className="space-y-4">
+            {completedReservations.length === 0 ? (
+              <Card>
+                <div className="p-12 text-center">
+                  <CheckCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No completed reservations</h3>
+                  <p className="text-gray-600">Your completed charging sessions will appear here.</p>
+                </div>
+              </Card>
+            ) : (
+              completedReservations.map((reservation) => (
+                <Card key={reservation._id}>
+                  <div className="p-6">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-5 h-5 text-green-600" />
+                          <h3 className="font-semibold text-lg text-gray-900">
+                            {reservation.stationId?.name || 'Unknown Station'}
+                          </h3>
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            <CheckCircle className="w-3 h-3" />
+                            Completed
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          {reservation.stationId?.address?.area}, {reservation.stationId?.address?.city}
+                        </p>
+                        <div className="flex flex-wrap gap-4 text-sm text-gray-700">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-4 h-4 text-gray-400" />
+                            {new Date(reservation.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-4 h-4 text-gray-400" />
+                            {new Date(reservation.startTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                            {' - '}
+                            {new Date(reservation.endTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Zap className="w-4 h-4 text-gray-400" />
+                            {reservation.connectorId?.standard} ({reservation.connectorId?.type})
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          Vehicle: {reservation.vehicleId?.make} {reservation.vehicleId?.model} ({reservation.vehicleId?.licensePlate})
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        {(reservation.totalCostBDT || reservation.estimatedCostBDT) && (
+                          <p className="text-xl font-bold text-gray-900">
+                            ৳{(reservation.totalCostBDT || reservation.estimatedCostBDT)?.toFixed(2)}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(reservation.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+        )}
+
         {/* Transactions Table */}
+        {activeTab === 'payments' && (
         <Card>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -289,6 +423,7 @@ export const TransactionHistory: React.FC = () => {
             </div>
           )}
         </Card>
+        )}
       </div>
     </div>
   );

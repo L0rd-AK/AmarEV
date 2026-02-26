@@ -424,6 +424,20 @@ export class ReservationController {
         filter.startTime = { $gte: new Date() };
       }
 
+      // Auto-complete expired reservations: if a paid/confirmed reservation's endTime has passed, mark it COMPLETED
+      const now = new Date();
+      await Reservation.updateMany(
+        {
+          userId,
+          status: { $in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN] },
+          isPaid: true,
+          endTime: { $lt: now },
+        },
+        {
+          $set: { status: ReservationStatus.COMPLETED },
+        }
+      );
+
       const reservations = await Reservation.find(filter)
         .populate('vehicleId', 'make model year licensePlate')
         .populate('stationId', 'name address city location photos')

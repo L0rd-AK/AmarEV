@@ -4,6 +4,7 @@ import {
   DashboardAnalytics,
   SystemStats,
 } from '../services/adminService';
+import { chargingSimulationService, ChargingTelemetry } from '../services/chargingSimulationService';
 import { LoadingSpinner } from '../components/UI/LoadingSpinner';
 import { Alert } from '../components/UI/Alert';
 import {
@@ -16,6 +17,10 @@ import {
   Star,
   AlertTriangle,
   Activity,
+  BatteryCharging,
+  Thermometer,
+  Cpu,
+  ZapOff,
 } from 'lucide-react';
 
 interface StatCardProps {
@@ -66,6 +71,7 @@ export const AdminDashboard: React.FC = () => {
   const [systemStats, setSystemStats] = useState<SystemStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeChargingSessions, setActiveChargingSessions] = useState<ChargingTelemetry[]>([]);
   const [dateRange, setDateRange] = useState({
     startDate: '',
     endDate: '',
@@ -74,6 +80,30 @@ export const AdminDashboard: React.FC = () => {
   useEffect(() => {
     fetchDashboardData();
   }, [dateRange]);
+
+  // Poll active charging sessions every 3 seconds
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchActiveSessions = async () => {
+      try {
+        const sessions = await chargingSimulationService.getActiveChargingSessions();
+        if (isMounted) {
+          setActiveChargingSessions(Array.isArray(sessions) ? sessions : []);
+        }
+      } catch (err) {
+        console.error('Error fetching active charging sessions:', err);
+        // Don't clear existing sessions on error
+      }
+    };
+
+    fetchActiveSessions();
+    const pollInterval = setInterval(fetchActiveSessions, 3000);
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+    };
+  }, []);
 
   const fetchDashboardData = async () => {
     try {
@@ -396,6 +426,149 @@ export const AdminDashboard: React.FC = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Live ESP32 Charging Monitor */}
+      <div className="bg-white rounded-lg shadow mb-8">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-full ${activeChargingSessions.length > 0 ? 'bg-green-100' : 'bg-gray-100'}`}>
+                <Cpu className={`w-5 h-5 ${activeChargingSessions.length > 0 ? 'text-green-600' : 'text-gray-400'}`} />
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Live ESP32 Charging Monitor
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Real-time simulated ESP32 device telemetry from active charging sessions
+                </p>
+              </div>
+            </div>
+            {activeChargingSessions.length > 0 ? (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <span className="text-sm font-medium text-green-700">
+                  {activeChargingSessions.length} Active Session{activeChargingSessions.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" />
+                <span className="text-xs text-gray-400">Polling every 3s</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {activeChargingSessions.length === 0 ? (
+          <div className="p-12 text-center">
+            <ZapOff className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h4 className="text-lg font-semibold text-gray-600 mb-2">No Active Charging Sessions</h4>
+            <p className="text-sm text-gray-400 max-w-md mx-auto">
+              When users start charging during their booking time, real-time voltage, current, and power data will appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {activeChargingSessions.map((session) => {
+              const elapsed = session.elapsedSeconds || 0;
+              const h = Math.floor(elapsed / 3600);
+              const m = Math.floor((elapsed % 3600) / 60);
+              const s = elapsed % 60;
+              const elapsedStr = h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`;
+
+              return (
+                <div key={session.sessionId} className="p-6">
+                  {/* Session Header */}
+                  <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-100 rounded-full">
+                        <BatteryCharging className="w-5 h-5 text-green-600 animate-pulse" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{session.stationName}</h4>
+                        <div className="flex items-center gap-3 text-sm text-gray-500">
+                          <span>User: <span className="font-medium text-gray-700">{session.userName}</span></span>
+                          <span>•</span>
+                          <span>Connector: <span className="font-medium text-gray-700">{session.connectorType}</span></span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <div className="text-xs text-gray-400">Elapsed</div>
+                        <div className="text-sm font-mono font-semibold text-gray-700">{elapsedStr}</div>
+                      </div>
+                      <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold uppercase tracking-wide flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                        Charging
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Telemetry Grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
+                      <div className="flex items-center gap-1.5 text-xs text-green-600 font-medium mb-2">
+                        <Activity className="w-3.5 h-3.5" />
+                        VOLTAGE
+                      </div>
+                      <div className="text-2xl font-bold text-green-800">
+                        {session.voltage.toFixed(1)}
+                        <span className="text-sm font-normal text-green-600 ml-1">V</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-200">
+                      <div className="flex items-center gap-1.5 text-xs text-blue-600 font-medium mb-2">
+                        <Zap className="w-3.5 h-3.5" />
+                        CURRENT
+                      </div>
+                      <div className="text-2xl font-bold text-blue-800">
+                        {session.current.toFixed(2)}
+                        <span className="text-sm font-normal text-blue-600 ml-1">A</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl p-4 border border-yellow-200">
+                      <div className="flex items-center gap-1.5 text-xs text-yellow-600 font-medium mb-2">
+                        <BatteryCharging className="w-3.5 h-3.5" />
+                        POWER
+                      </div>
+                      <div className="text-2xl font-bold text-yellow-800">
+                        {(session.power / 1000).toFixed(2)}
+                        <span className="text-sm font-normal text-yellow-600 ml-1">kW</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-4 border border-purple-200">
+                      <div className="flex items-center gap-1.5 text-xs text-purple-600 font-medium mb-2">
+                        <TrendingUp className="w-3.5 h-3.5" />
+                        ENERGY
+                      </div>
+                      <div className="text-2xl font-bold text-purple-800">
+                        {session.energyKWh.toFixed(3)}
+                        <span className="text-sm font-normal text-purple-600 ml-1">kWh</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-xl p-4 border border-red-200">
+                      <div className="flex items-center gap-1.5 text-xs text-red-600 font-medium mb-2">
+                        <Thermometer className="w-3.5 h-3.5" />
+                        TEMP
+                      </div>
+                      <div className="text-2xl font-bold text-red-700">
+                        {session.temperature.toFixed(1)}
+                        <span className="text-sm font-normal text-red-500 ml-1">°C</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Recent Users */}

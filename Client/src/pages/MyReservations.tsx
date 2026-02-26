@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Calendar, MapPin, Clock, AlertCircle, CheckCircle, XCircle, QrCode, CreditCard, Timer } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Calendar, MapPin, Clock, AlertCircle, CheckCircle, XCircle, QrCode, CreditCard, Timer, Zap, ZapOff, Activity, Thermometer, BatteryCharging } from 'lucide-react';
 import reservationService from '../services/reservationService';
+import { chargingSimulationService, ChargingStatus } from '../services/chargingSimulationService';
 import { LoadingSpinner } from '../components/UI/LoadingSpinner';
 import { Alert } from '../components/UI/Alert';
 import { Button } from '../components/UI';
@@ -90,6 +91,9 @@ export const MyReservations: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'completed' | 'cancelled'>('all');
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [payingReservation, setPayingReservation] = useState<Reservation | null>(null);
+  const [chargingStates, setChargingStates] = useState<Record<string, ChargingStatus>>({});
+  const [chargingLoading, setChargingLoading] = useState<Record<string, boolean>>({});
+  const [now, setNow] = useState(new Date());
 
   useEffect(() => {
     fetchReservations();
@@ -105,12 +109,107 @@ export const MyReservations: React.FC = () => {
     
     // Also refresh when window gains focus
     window.addEventListener('focus', fetchReservations);
+
+    // Update current time every second (for Start Charging button activation)
+    const clockInterval = setInterval(() => setNow(new Date()), 1000);
     
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', fetchReservations);
+      clearInterval(clockInterval);
     };
   }, []);
+
+  // Poll charging status for active reservations
+  useEffect(() => {
+    const confirmedReservations = reservations.filter(
+      r => ['CONFIRMED', 'CHECKED_IN', 'confirmed', 'checked_in'].includes(r.status)
+    );
+
+    if (confirmedReservations.length === 0) return;
+
+    const pollChargingStatus = async () => {
+      for (const reservation of confirmedReservations) {
+        try {
+          const status = await chargingSimulationService.getChargingStatus(reservation._id);
+          setChargingStates(prev => ({ ...prev, [reservation._id]: status }));
+        } catch (err) {
+          // Ignore errors for individual polls
+        }
+      }
+    };
+
+    pollChargingStatus();
+    const pollInterval = setInterval(pollChargingStatus, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [reservations]);
+
+  // Check if a reservation is within its booking time window
+  const isWithinBookingWindow = useCallback((reservation: Reservation): boolean => {
+    const gracePeriodMs = 5 * 60 * 1000; // 5 minutes grace
+    const bookingStart = new Date(new Date(reservation.startTime).getTime() - gracePeriodMs);
+    const bookingEnd = new Date(reservation.endTime);
+    return now >= bookingStart && now <= bookingEnd;
+  }, [now]);
+
+  const handleStartCharging = async (reservationId: string) => {
+    try {
+      setChargingLoading(prev => ({ ...prev, [reservationId]: true }));
+      const result = await chargingSimulationService.startCharging(reservationId);
+      setChargingStates(prev => ({
+        ...prev,
+        [reservationId]: {
+          isCharging: true,
+          sessionId: result.sessionId,
+          voltage: 0,
+          current: 0,
+          power: 0,
+          energyKWh: 0,
+          temperature: 25,
+          connectorStatus: 'charging',
+          startedAt: result.startTime,
+          elapsedSeconds: 0,
+        },
+      }));
+      await fetchReservations();
+    } catch (err: any) {
+      console.error('Error starting charging:', err);
+      const msg = err.response?.data?.message || 'Failed to start charging';
+      alert(msg);
+    } finally {
+      setChargingLoading(prev => ({ ...prev, [reservationId]: false }));
+    }
+  };
+
+  const handleStopCharging = async (reservationId: string) => {
+    const chargingState = chargingStates[reservationId];
+    if (!chargingState?.sessionId) return;
+
+    if (!confirm('Are you sure you want to stop charging?')) return;
+
+    try {
+      setChargingLoading(prev => ({ ...prev, [reservationId]: true }));
+      const result = await chargingSimulationService.stopCharging(chargingState.sessionId);
+      setChargingStates(prev => ({ ...prev, [reservationId]: { isCharging: false } }));
+      alert(`Charging complete!\nEnergy: ${result.totalEnergyKWh.toFixed(3)} kWh\nCost: ৳${result.totalCostBDT.toFixed(2)}`);
+      await fetchReservations();
+    } catch (err: any) {
+      console.error('Error stopping charging:', err);
+      alert(err.response?.data?.message || 'Failed to stop charging');
+    } finally {
+      setChargingLoading(prev => ({ ...prev, [reservationId]: false }));
+    }
+  };
+
+  const formatElapsed = (seconds: number): string => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  };
 
   const fetchReservations = async () => {
     try {
@@ -137,9 +236,12 @@ export const MyReservations: React.FC = () => {
       const reservationsData = (response as any).reservations || response.data?.reservations || [];
       console.log('Extracted reservations:', reservationsData);
       
-      // Filter out already paid reservations (these should be deleted but filter as safety)
-      const activeReservations = reservationsData.filter((r: Reservation) => !r.isPaid);
-      console.log('Active (unpaid) reservations:', activeReservations);
+      // Show active reservations: exclude COMPLETED, EXPIRED, and CANCELED
+      // Completed/expired reservations appear in Transaction History
+      const activeReservations = reservationsData.filter((r: Reservation) => 
+        !['COMPLETED', 'EXPIRED', 'CANCELED'].includes(r.status)
+      );
+      console.log('Active reservations:', activeReservations);
       
       setReservations(activeReservations);
     } catch (err) {
@@ -258,7 +360,7 @@ export const MyReservations: React.FC = () => {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">My Reservations</h1>
-        <p className="mt-2 text-gray-600">View and manage your pending charging reservations</p>
+        <p className="mt-2 text-gray-600">View and manage your charging reservations</p>
       </div>
 
       {/* Info Message */}
@@ -269,8 +371,9 @@ export const MyReservations: React.FC = () => {
           </svg>
           <div>
             <p className="text-sm text-blue-800">
-              <strong>Note:</strong> This page shows only pending reservations awaiting payment. 
-              Once payment is completed, the reservation is removed and the transaction is saved to your{' '}
+              <strong>Note:</strong> This page shows your active reservations. Pay for a reservation to confirm it, then 
+              use the <strong>Start Charging</strong> button during your booking time. Once the booking time is over, 
+              completed reservations move to your{' '}
               <Link to="/transaction-history" className="font-semibold underline hover:text-blue-900">
                 Transaction History
               </Link>.
@@ -455,6 +558,70 @@ export const MyReservations: React.FC = () => {
                         </Button>
                       )}
 
+                      {/* Start/Stop Charging Button — ONLY for PAID reservations during booking window */}
+                      {reservation.isPaid && ['CONFIRMED', 'CHECKED_IN', 'confirmed', 'checked_in'].includes(reservation.status) && ((() => {
+                        const chargingState = chargingStates[reservation._id];
+                        const isCharging = chargingState?.isCharging;
+                        const inWindow = isWithinBookingWindow(reservation);
+                        const isLoading = chargingLoading[reservation._id];
+                        const bookingStart = new Date(reservation.startTime);
+                        const bookingEnd = new Date(reservation.endTime);
+                        const isPast = now > bookingEnd;
+
+                        // If charging is active, always show stop button
+                        if (isCharging) {
+                          return (
+                            <Button
+                              onClick={() => handleStopCharging(reservation._id)}
+                              disabled={isLoading}
+                              className="text-sm flex items-center gap-2 bg-red-600 hover:bg-red-700 font-semibold shadow-lg"
+                            >
+                              {isLoading ? (
+                                <LoadingSpinner />
+                              ) : (
+                                <ZapOff className="w-4 h-4" />
+                              )}
+                              Stop Charging
+                            </Button>
+                          );
+                        }
+
+                        // If booking time is over, don't show start button
+                        if (isPast) return null;
+
+                        // If booking time hasn't arrived yet, show a countdown hint (no button)
+                        if (!inWindow) {
+                          return (
+                            <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200 flex items-center gap-2">
+                              <Clock className="w-3.5 h-3.5 text-gray-400" />
+                              <span>
+                                Charging available at{' '}
+                                <span className="font-semibold text-gray-700">
+                                  {bookingStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        // Booking window is now — show Start button
+                        return (
+                          <Button
+                            onClick={() => handleStartCharging(reservation._id)}
+                            disabled={isLoading}
+                            className="text-sm flex items-center gap-2 font-semibold shadow-lg bg-yellow-500 hover:bg-yellow-600 text-black animate-pulse hover:animate-none"
+                            title="Start your charging session now"
+                          >
+                            {isLoading ? (
+                              <LoadingSpinner />
+                            ) : (
+                              <Zap className="w-4 h-4" />
+                            )}
+                            Start Charging
+                          </Button>
+                        );
+                      })())}
+
                       {/* View QR for Confirmed/Checked-In */}
                       {['CONFIRMED', 'CHECKED_IN', 'confirmed', 'checked_in'].includes(reservation.status) && (
                         <>
@@ -487,6 +654,73 @@ export const MyReservations: React.FC = () => {
                   </div>
                 </div>
                 </div>
+
+                {/* Live Charging Telemetry Panel */}
+                {chargingStates[reservation._id]?.isCharging && (
+                  <div className="border-t border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                      <span className="text-sm font-semibold text-green-800">
+                        Live Charging — ESP32 Simulation Active
+                      </span>
+                      <span className="text-xs text-green-600 ml-auto">
+                        Elapsed: {formatElapsed(chargingStates[reservation._id]?.elapsedSeconds || 0)}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <div className="bg-white rounded-lg p-3 shadow-sm border border-green-100">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
+                          <Activity className="w-3 h-3" />
+                          Voltage
+                        </div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {(chargingStates[reservation._id]?.voltage || 0).toFixed(1)}
+                          <span className="text-xs font-normal text-gray-500 ml-1">V</span>
+                        </div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 shadow-sm border border-blue-100">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
+                          <Zap className="w-3 h-3" />
+                          Current
+                        </div>
+                        <div className="text-lg font-bold text-blue-700">
+                          {(chargingStates[reservation._id]?.current || 0).toFixed(2)}
+                          <span className="text-xs font-normal text-gray-500 ml-1">A</span>
+                        </div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 shadow-sm border border-yellow-100">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
+                          <BatteryCharging className="w-3 h-3" />
+                          Power
+                        </div>
+                        <div className="text-lg font-bold text-yellow-700">
+                          {((chargingStates[reservation._id]?.power || 0) / 1000).toFixed(2)}
+                          <span className="text-xs font-normal text-gray-500 ml-1">kW</span>
+                        </div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 shadow-sm border border-purple-100">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
+                          <BatteryCharging className="w-3 h-3" />
+                          Energy
+                        </div>
+                        <div className="text-lg font-bold text-purple-700">
+                          {(chargingStates[reservation._id]?.energyKWh || 0).toFixed(3)}
+                          <span className="text-xs font-normal text-gray-500 ml-1">kWh</span>
+                        </div>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 shadow-sm border border-red-100">
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
+                          <Thermometer className="w-3 h-3" />
+                          Temperature
+                        </div>
+                        <div className="text-lg font-bold text-red-600">
+                          {(chargingStates[reservation._id]?.temperature || 0).toFixed(1)}
+                          <span className="text-xs font-normal text-gray-500 ml-1">°C</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
