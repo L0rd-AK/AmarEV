@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   adminService,
   DashboardAnalytics,
@@ -21,6 +22,7 @@ import {
   Thermometer,
   Cpu,
   ZapOff,
+  Plus,
 } from 'lucide-react';
 
 interface StatCardProps {
@@ -67,6 +69,7 @@ const StatCard: React.FC<StatCardProps> = ({
 };
 
 export const AdminDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
   const [systemStats, setSystemStats] = useState<SystemStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -169,9 +172,19 @@ export const AdminDashboard: React.FC = () => {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="mt-2 text-gray-600">
-          Comprehensive overview of platform performance and analytics
-        </p>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
+          <p className="text-gray-600">
+            Comprehensive overview of platform performance and analytics
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/operator/stations/new')}
+            className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Station
+          </button>
+        </div>
       </div>
 
       {/* Date Range Filter */}
