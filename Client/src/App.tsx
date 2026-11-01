@@ -2,7 +2,8 @@ import { Routes, Route } from 'react-router-dom';
 import { 
   Home, Login, Register, EmailVerification, Profile,
   Stations, StationDetails, OperatorDashboard, StationAnalytics,
-  UserDashboard, AdminDashboard, MyVehicles, MyReservations, TransactionHistory
+  UserDashboard, AdminDashboard, MyVehicles, MyReservations, TransactionHistory,
+  CreateStation
 } from './pages';
 import { PaymentSuccess } from './pages/PaymentSuccess';
 import { PaymentFailed } from './pages/PaymentFailed';
@@ -52,11 +53,12 @@ function App() {
           <Route path="/transactions" element={<ProtectedRoute><TransactionHistory /></ProtectedRoute>} />
           
           {/* Protected Operator Routes */}
-          <Route path="/operator/dashboard" element={<ProtectedRoute><OperatorDashboard /></ProtectedRoute>} />
+          <Route path="/operator/dashboard" element={<ProtectedRoute requiredRoles={['operator', 'admin']}><OperatorDashboard /></ProtectedRoute>} />
+          <Route path="/operator/stations/new" element={<ProtectedRoute requiredRoles={['operator', 'admin']}><CreateStation /></ProtectedRoute>} />
           <Route path="/operator/stations/:id/analytics" element={<ProtectedRoute><StationAnalytics /></ProtectedRoute>} />
           
           {/* Protected Admin Routes */}
-          <Route path="/admin/dashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/dashboard" element={<ProtectedRoute requiredRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
           
           {/* Catch-all 404 route */}
           <Route path="*" element={
